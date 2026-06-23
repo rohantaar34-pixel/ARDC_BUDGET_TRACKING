@@ -10,15 +10,27 @@ class DashboardController extends Controller
 {
     public function index()
     {
+        $user = Auth::user();
+
+        if ($user->isEmployee()) {
+            return redirect()->route('monitoring.submit');
+        }
+
+        $projectQuery = Project::query();
+
+        if ($user->isEmployee()) {
+            $projectQuery->whereIn('id', $user->assignedProjects()->pluck('projects.id'));
+        }
+
         // Get statistics for the dashboard
         $stats = [
-            'total_projects' => Project::count(),
-            'total_documents' => Document::count(), // You'll need to create this model
-            'total_budget' => Project::sum('budget'),
+            'total_projects' => (clone $projectQuery)->count(),
+            'total_documents' => $user->isAdmin() ? Document::count() : 0,
+            'total_budget' => (clone $projectQuery)->sum('budget'),
         ];
         
         // Get all projects for the dashboard to display their current budgets
-        $projects = Project::orderBy('created_at', 'desc')->get();
+        $projects = $projectQuery->orderBy('created_at', 'desc')->get();
 
         return view('dashboard', compact('stats', 'projects'));
     }

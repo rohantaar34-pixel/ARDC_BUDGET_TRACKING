@@ -97,7 +97,7 @@
         <nav class="bg-white border-b-4 border-red-600 sticky top-0 z-40 shadow-sm">
             <div class="w-full px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
 
-                <a href="{{ route('projects.index') }}"
+                <a href="{{ Auth::check() && Auth::user()->isEmployee() ? route('monitoring.submit') : route('projects.index') }}"
                     class="flex items-center gap-2 sm:gap-3 flex-shrink-0 hover:opacity-80 transition-opacity">
                     <img src="{{ asset('images/logo.jpg') }}" alt="ARDC Logo"
                         class="h-10 sm:h-12 w-auto object-contain">
@@ -111,13 +111,11 @@
                     <div style="display:flex; align-items:center; gap:12px;">
                         <span style="font-size:.8rem; color:#888; font-weight:600;">{{ Auth::user()->name }}</span>
                         
-                        <a href="{{ route('settings.projects.index') }}" class="btn-nav-logout" style="background: rgba(99, 102, 241, 0.15); border-color: rgba(99, 102, 241, 0.3); color: #4f46e5; text-decoration: none;">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline; vertical-align:middle; margin-right:4px; margin-top:-2px;">
-                                <circle cx="12" cy="12" r="3"></circle>
-                                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-                            </svg>
-                            Settings
-                        </a>
+                        @if(Auth::user()->isAdmin())
+                            <a href="{{ route('settings.projects.index') }}" class="btn-nav-logout" style="background: rgba(99, 102, 241, 0.15); border-color: rgba(99, 102, 241, 0.3); color: #4f46e5; text-decoration: none;">
+                                Settings
+                            </a>
+                        @endif
 
                         <form method="POST" action="{{ route('logout') }}" class="nav-logout-form">
                             @csrf

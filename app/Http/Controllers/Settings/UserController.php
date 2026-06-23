@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Settings;
 
 use App\Http\Controllers\Controller;
+use App\Models\Project;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -13,20 +14,34 @@ class UserController extends Controller
 {
     public function index()
     {
-        $users = User::orderBy('name')->get();
+        $users = User::with('assignedProjects')->orderBy('name')->get();
+        $projects = Project::orderBy('name')->get();
 
-        return view('settings.users.index', compact('users'));
+        return view('settings.users.index', compact('users', 'projects'));
     }
 
     public function store(Request $request)
     {
+        $request->merge([
+            'project_ids' => array_values(array_filter($request->input('project_ids', []))),
+        ]);
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'confirmed', Password::min(6)],
+            'role' => ['required', Rule::in(['admin', 'employee'])],
+            'project_ids' => ['nullable', 'array'],
+            'project_ids.*' => ['integer', 'exists:projects,id'],
         ]);
 
-        User::create($validated);
+        $projectIds = $validated['role'] === 'employee'
+            ? array_map('intval', $validated['project_ids'] ?? [])
+            : [];
+        unset($validated['project_ids']);
+
+        $user = User::create($validated);
+        $user->assignedProjects()->sync($projectIds);
 
         return redirect()
             ->route('settings.users.index')
@@ -35,17 +50,30 @@ class UserController extends Controller
 
     public function update(Request $request, User $user)
     {
+        $request->merge([
+            'project_ids' => array_values(array_filter($request->input('project_ids', []))),
+        ]);
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
             'password' => ['nullable', 'confirmed', Password::min(6)],
+            'role' => ['required', Rule::in(['admin', 'employee'])],
+            'project_ids' => ['nullable', 'array'],
+            'project_ids.*' => ['integer', 'exists:projects,id'],
         ]);
 
         if (empty($validated['password'])) {
             unset($validated['password']);
         }
 
+        $projectIds = $validated['role'] === 'employee'
+            ? array_map('intval', $validated['project_ids'] ?? [])
+            : [];
+        unset($validated['project_ids']);
+
         $user->update($validated);
+        $user->assignedProjects()->sync($projectIds);
 
         return redirect()
             ->route('settings.users.index')

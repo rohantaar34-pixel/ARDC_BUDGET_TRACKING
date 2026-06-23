@@ -19,7 +19,14 @@ class ProjectController extends Controller
     public function index()
     {
         try {
-            $projects = Project::withCount(['transactions'])
+            $query = Project::withCount(['transactions']);
+
+            if (Auth::user()->isEmployee()) {
+                $assignedIds = Auth::user()->assignedProjects()->pluck('projects.id');
+                $query->whereIn('id', $assignedIds);
+            }
+
+            $projects = $query
                 ->orderBy('created_at', 'desc')
                 ->get();
 
@@ -43,6 +50,10 @@ class ProjectController extends Controller
     public function show(Project $project)
     {
         try {
+            if (Auth::user()->isEmployee() && !Auth::user()->assignedProjects()->whereKey($project->id)->exists()) {
+                abort(403);
+            }
+
             $expenseCategories = ExpenseCategory::orderBy('name')->get();
 
             $transactions = $project->transactions()
@@ -93,6 +104,10 @@ class ProjectController extends Controller
     public function update(Request $request, Project $project)
     {
         try {
+            if (!Auth::user()->isAdmin()) {
+                abort(403);
+            }
+
             $validated = $request->validate([
                 'name'        => 'required|string|max:255',
                 'description' => 'nullable|string|max:1000',

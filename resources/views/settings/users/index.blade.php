@@ -186,13 +186,53 @@
         font-weight: 700;
         color: #374151;
     }
-    .form-group input {
+    .form-group input, .form-group select {
         width: 100%;
         padding: 11px;
         border: 1px solid #d1d5db;
         border-radius: 7px;
         font-family: inherit;
     }
+    .project-checks {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 8px;
+        padding: 10px;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        max-height: 180px;
+        overflow: auto;
+    }
+    .project-check {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        font-weight: 600;
+        color: #374151;
+    }
+    .project-check input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        padding: 0;
+        appearance: auto;
+        -webkit-appearance: checkbox;
+        accent-color: #4f46e5;
+        flex: 0 0 auto;
+        cursor: pointer;
+    }
+    .project-check { cursor: pointer; }
+    .role-badge {
+        display: inline-flex;
+        padding: 4px 8px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+    }
+    .role-admin { background: #fee2e2; color: #991b1b; }
+    .role-employee { background: #eef2ff; color: #3730a3; }
     .help-text {
         color: #6b7280;
         font-size: 12px;
@@ -251,6 +291,8 @@
                 <tr>
                     <th>User</th>
                     <th>Email</th>
+                    <th>Role</th>
+                    <th>Assigned Projects</th>
                     <th>Created</th>
                     <th>Status</th>
                     <th>Actions</th>
@@ -269,6 +311,16 @@
                             </div>
                         </td>
                         <td>{{ $user->email }}</td>
+                        <td>
+                            <span class="role-badge role-{{ $user->role }}">{{ ucfirst($user->role) }}</span>
+                        </td>
+                        <td class="muted">
+                            @if($user->isEmployee())
+                                {{ $user->assignedProjects->pluck('name')->join(', ') ?: 'No assignments' }}
+                            @else
+                                All projects
+                            @endif
+                        </td>
                         <td>{{ $user->created_at?->format('M d, Y') ?? '-' }}</td>
                         <td>
                             @if(Auth::id() === $user->id)
@@ -282,7 +334,7 @@
                                 <button
                                     type="button"
                                     class="action-btn btn-edit"
-                                    onclick="openEditModal({{ $user->id }}, @js($user->name), @js($user->email))"
+                                    onclick="openEditModal({{ $user->id }}, @js($user->name), @js($user->email), @js($user->role), @js($user->assignedProjects->pluck('id')->values()->all()))"
                                 >
                                     Edit
                                 </button>
@@ -296,7 +348,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="5" style="text-align: center; color: #6b7280;">No users found.</td>
+                        <td colspan="7" style="text-align: center; color: #6b7280;">No users found.</td>
                     </tr>
                 @endforelse
             </tbody>
@@ -325,6 +377,27 @@
             <div class="form-group">
                 <label>Confirm Password *</label>
                 <input type="password" name="password_confirmation" required>
+            </div>
+            <div class="form-group">
+                <label>Role *</label>
+                <select name="role" id="addRole" onchange="toggleProjectAssignments('add')" required>
+                    <option value="employee" @selected(old('role') === 'employee')>Employee</option>
+                    <option value="admin" @selected(old('role') === 'admin')>Admin</option>
+                </select>
+            </div>
+            <div class="form-group" id="addProjectAssignments">
+                <label>Assigned Projects</label>
+                <div class="project-checks">
+                    @forelse($projects as $project)
+                        <label class="project-check">
+                            <input type="checkbox" name="project_ids[]" value="{{ $project->id }}" @checked(in_array($project->id, old('project_ids', [])))>
+                            {{ $project->name }}
+                        </label>
+                    @empty
+                        <span class="muted">Create projects before assigning employees.</span>
+                    @endforelse
+                </div>
+                <div class="help-text">Employees only see monitoring projects assigned here.</div>
             </div>
             <div class="form-actions">
                 <button type="button" class="btn-cancel" onclick="closeModals()">Cancel</button>
@@ -357,6 +430,26 @@
                 <label>Confirm New Password</label>
                 <input type="password" name="password_confirmation">
             </div>
+            <div class="form-group">
+                <label>Role *</label>
+                <select name="role" id="editRole" onchange="toggleProjectAssignments('edit')" required>
+                    <option value="employee">Employee</option>
+                    <option value="admin">Admin</option>
+                </select>
+            </div>
+            <div class="form-group" id="editProjectAssignments">
+                <label>Assigned Projects</label>
+                <div class="project-checks">
+                    @forelse($projects as $project)
+                        <label class="project-check">
+                            <input type="checkbox" name="project_ids[]" value="{{ $project->id }}" data-edit-project>
+                            {{ $project->name }}
+                        </label>
+                    @empty
+                        <span class="muted">Create projects before assigning employees.</span>
+                    @endforelse
+                </div>
+            </div>
             <div class="form-actions">
                 <button type="button" class="btn-cancel" onclick="closeModals()">Cancel</button>
                 <button type="submit" class="btn-primary">Save Changes</button>
@@ -370,11 +463,22 @@
         document.getElementById('addModal').style.display = 'flex';
     }
 
-    function openEditModal(id, name, email) {
+    function toggleProjectAssignments(prefix) {
+        const role = document.getElementById(prefix + 'Role').value;
+        document.getElementById(prefix + 'ProjectAssignments').style.display = role === 'employee' ? 'block' : 'none';
+    }
+
+    function openEditModal(id, name, email, role, projectIds) {
         const form = document.getElementById('editForm');
         form.action = '{{ url('/settings/users') }}/' + id;
         document.getElementById('editName').value = name;
         document.getElementById('editEmail').value = email;
+        document.getElementById('editRole').value = role;
+        const assignedProjectIds = Array.isArray(projectIds) ? projectIds.map(Number) : Object.values(projectIds).map(Number);
+        document.querySelectorAll('[data-edit-project]').forEach(input => {
+            input.checked = assignedProjectIds.includes(Number(input.value));
+        });
+        toggleProjectAssignments('edit');
         document.getElementById('editModal').style.display = 'flex';
     }
 
@@ -392,5 +496,6 @@
     @if($errors->any())
         openAddModal();
     @endif
+    toggleProjectAssignments('add');
 </script>
 @endsection

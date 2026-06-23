@@ -25,8 +25,10 @@ class ProjectController extends Controller
                 'name'        => 'required|string|max:255',
                 'description' => 'nullable|string|max:1000',
                 'budget'      => 'nullable|numeric|min:0',
+                'status'      => 'nullable|in:not_started,in_progress,near_completion,completed',
             ]);
 
+            $validated['status'] = $validated['status'] ?? 'not_started';
             $project = Project::create($validated);
 
             // Generate document number
@@ -79,7 +81,7 @@ class ProjectController extends Controller
                 'name'        => 'required|string|max:255',
                 'description' => 'nullable|string|max:1000',
                 'budget'      => 'nullable|numeric|min:0',
-                'status'      => 'nullable|string|max:50',
+                'status'      => 'nullable|in:not_started,in_progress,near_completion,completed',
             ]);
 
             $project->update($validated);
