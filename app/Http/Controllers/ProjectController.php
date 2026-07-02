@@ -5,19 +5,28 @@ namespace App\Http\Controllers;
 use App\Models\Project;
 use App\Models\Transaction;
 use App\Models\ExpenseCategory;
+use App\Models\Document;
 use App\Services\TransactionReportService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Response;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Auth;
 
 class ProjectController extends Controller
 {
     public function index()
     {
         try {
-            $projects = Project::withCount(['transactions'])
+            $query = Project::withCount(['transactions']);
+
+            if (Auth::user()->isEmployee()) {
+                $assignedIds = Auth::user()->assignedProjects()->pluck('projects.id');
+                $query->whereIn('id', $assignedIds);
+            }
+
+            $projects = $query
                 ->orderBy('created_at', 'desc')
                 ->get();
 
@@ -41,6 +50,10 @@ class ProjectController extends Controller
     public function show(Project $project)
     {
         try {
+            if (Auth::user()->isEmployee() && !Auth::user()->assignedProjects()->whereKey($project->id)->exists()) {
+                abort(403);
+            }
+
             $expenseCategories = ExpenseCategory::orderBy('name')->get();
 
             $transactions = $project->transactions()
@@ -88,67 +101,31 @@ class ProjectController extends Controller
         }
     }
 
-    public function store(Request $request)
-    {
-        try {
-            $validated = $request->validate([
-                'name'        => 'required|string|max:255',
-                'description' => 'nullable|string|max:1000',
-                'budget'      => 'nullable|numeric|min:0',
-            ]);
-
-            Project::create($validated);
-
-            return redirect()->route('projects.index')
-                ->with('success', 'Project created successfully');
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            return redirect()->back()->withErrors($e->errors())->withInput()
-                ->with('error', 'Validation failed. Please check the form.');
-        } catch (\Exception $e) {
-            Log::error('Error in ProjectController@store: ' . $e->getMessage());
-            return redirect()->back()->withInput()
-                ->with('error', 'Error creating project: ' . $e->getMessage());
-        }
-    }
-
     public function update(Request $request, Project $project)
     {
         try {
+            if (!Auth::user()->isAdmin()) {
+                abort(403);
+            }
+
             $validated = $request->validate([
                 'name'        => 'required|string|max:255',
                 'description' => 'nullable|string|max:1000',
                 'budget'      => 'nullable|numeric|min:0',
+                'status'      => 'nullable|string|max:50',
             ]);
 
             $project->update($validated);
 
             return redirect()->route('projects.show', $project)
                 ->with('success', 'Project updated successfully');
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            return redirect()->back()->withErrors($e->errors())->withInput()
-                ->with('error', 'Validation failed. Please check the form.');
         } catch (\Exception $e) {
             Log::error('Error in ProjectController@update: ' . $e->getMessage());
-            return redirect()->back()->withInput()
-                ->with('error', 'Error updating project: ' . $e->getMessage());
+            return redirect()->back()->withInput()->with('error', 'Error updating project: ' . $e->getMessage());
         }
     }
 
-    public function destroy(Project $project)
-    {
-        try {
-            $projectName = $project->name;
-            $project->delete();
-
-            return redirect()->route('projects.index')
-                ->with('success', 'Project "' . $projectName . '" deleted successfully');
-        } catch (\Exception $e) {
-            Log::error('Error in ProjectController@destroy: ' . $e->getMessage());
-            return redirect()->back()->with('error', 'Error deleting project: ' . $e->getMessage());
-        }
-    }
-
-public function addTransaction(Request $request, Project $project)
+    public function addTransaction(Request $request, Project $project)
 {
     try {
         $request->merge(['amount' => str_replace(['₱', ','], '', $request->amount)]);

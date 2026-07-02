@@ -3,6 +3,143 @@
 
 @section('content')
     <style>
+        /* Enhanced Dashboard Button Styles */
+        .btn-dashboard-enhanced {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 20px;
+            background: linear-gradient(135deg, var(--indigo) 0%, #4f46e5 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 700;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-dashboard-enhanced::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+
+        .btn-dashboard-enhanced:hover::before {
+            width: 300px;
+            height: 300px;
+        }
+
+        .btn-dashboard-enhanced:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+            background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
+        }
+
+        .btn-dashboard-enhanced:active {
+            transform: translateY(0);
+        }
+
+        .btn-dashboard-enhanced svg {
+            stroke: white;
+            transition: transform 0.3s ease;
+        }
+
+        .btn-dashboard-enhanced:hover svg {
+            transform: scale(1.1);
+        }
+
+        /* Dashboard Badge */
+        .dashboard-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(99, 102, 241, 0.1);
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            color: var(--indigo);
+            margin-left: 10px;
+        }
+
+        /* Floating Dashboard Button (Optional) */
+        .floating-dashboard {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            z-index: 1000;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4);
+            }
+
+            70% {
+                box-shadow: 0 0 0 10px rgba(99, 102, 241, 0);
+            }
+
+            100% {
+                box-shadow: 0 0 0 0 rgba(99, 102, 241, 0);
+            }
+        }
+
+        /* Dashboard Quick Stats Dropdown */
+        .dashboard-quick-stats {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+            padding: 12px;
+            min-width: 200px;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-10px);
+            transition: all 0.3s ease;
+            pointer-events: none;
+        }
+
+        .dashboard-btn-wrapper:hover .dashboard-quick-stats {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+            pointer-events: auto;
+        }
+
+        .quick-stat-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 12px;
+            font-size: 13px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .quick-stat-item:last-child {
+            border-bottom: none;
+        }
+
+        .quick-stat-label {
+            color: var(--ink-4);
+        }
+
+        .quick-stat-value {
+            font-weight: 700;
+            color: var(--indigo);
+        }
+
         :root {
             --indigo: #6366f1;
             --indigo-dark: #4f46e5;
@@ -370,9 +507,7 @@
 
         @media (min-width: 1024px) {
             .main-layout {
-                display: grid;
-                grid-template-columns: 340px 1fr;
-                gap: 24px;
+                display: block;
                 padding: 0 32px;
             }
 
@@ -401,7 +536,19 @@
     </style>
 
     <div class="app">
-
+        {{-- Back to Dashboard --}}
+        {{-- Enhanced Dashboard Button with Stats --}}
+        {{-- Simple Dashboard Button --}}
+        <a href="{{ route('dashboard') }}" class="btn-dashboard-enhanced">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round">
+                <rect x="3" y="3" width="7" height="7" />
+                <rect x="14" y="3" width="7" height="7" />
+                <rect x="14" y="14" width="7" height="7" />
+                <rect x="3" y="14" width="7" height="7" />
+            </svg>
+            Dashboard
+        </a>
         {{-- Header --}}
         <div class="page-header">
             <div>
@@ -410,8 +557,8 @@
             </div>
             <div
                 style="width:36px;height:36px;background:var(--indigo-light);border-radius:10px;display:flex;align-items:center;justify-content:center;">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--indigo)" stroke-width="2.2"
-                    stroke-linecap="round" stroke-linejoin="round">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--indigo)"
+                    stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                     <rect x="2" y="7" width="20" height="14" rx="2" />
                     <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
                 </svg>
@@ -442,41 +589,7 @@
         <div class="main-layout" style="margin-top:0;">
 
             {{-- Sidebar: create form --}}
-            <div class="sidebar">
 
-                {{-- Mobile: toggle FAB --}}
-                <div class="fab-wrap" id="fabWrap">
-                    <button class="fab-toggle" onclick="toggleForm()">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2.5" stroke-linecap="round">
-                            <line x1="12" y1="5" x2="12" y2="19" />
-                            <line x1="5" y1="12" x2="19" y2="12" />
-                        </svg>
-                        New Project
-                    </button>
-                </div>
-
-                <div class="create-form-wrap" id="createFormWrap">
-                    <form action="{{ route('projects.store') }}" method="POST" class="create-form">
-                        @csrf
-                        <div>
-                            <label class="field-lbl">Project Name</label>
-                            <input type="text" name="name" class="field-in" placeholder="e.g. Website Redesign"
-                                required>
-                        </div>
-                        <div>
-                            <label class="field-lbl">Description</label>
-                            <textarea name="description" rows="2" class="field-in" placeholder="What is this for?"></textarea>
-                        </div>
-                        <div>
-                            <label class="field-lbl">Initial Budget</label>
-                            <input type="number" step="0.01" name="budget" class="field-in" placeholder="0.00">
-                        </div>
-                        <button type="submit" class="btn-create">Create Project</button>
-                    </form>
-                </div>
-
-            </div>
 
             {{-- Main col: project list --}}
             <div class="main-col">
@@ -486,8 +599,9 @@
                     @forelse($projects as $project)
                         <a href="{{ route('projects.show', $project) }}" class="project-card">
                             <div class="proj-icon">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--indigo)"
-                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+                                    stroke="var(--indigo)" stroke-width="2" stroke-linecap="round"
+                                    stroke-linejoin="round">
                                     <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
                                 </svg>
                             </div>
@@ -552,27 +666,6 @@
     </div>
 
     <script>
-        function toggleForm() {
-            const wrap = document.getElementById('createFormWrap');
-            const btn = document.querySelector('.fab-toggle');
-            const open = wrap.classList.toggle('open');
-            btn.innerHTML = open ?
-                `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Cancel` :
-                `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> New Project`;
-        }
-
-        // On desktop always show the form
-        function checkDesktop() {
-            const wrap = document.getElementById('createFormWrap');
-            const fab = document.getElementById('fabWrap');
-            if (window.innerWidth >= 1024) {
-                wrap.classList.add('open');
-                if (fab) fab.style.display = 'none';
-            } else {
-                if (fab) fab.style.display = 'block';
-            }
-        }
-        checkDesktop();
-        window.addEventListener('resize', checkDesktop);
+        // Form logic removed
     </script>
 @endsection

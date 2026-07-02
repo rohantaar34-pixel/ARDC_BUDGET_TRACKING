@@ -34,6 +34,74 @@
             color: var(--ink);
         }
 
+        /* Navigation Bar */
+        .nav-bar {
+            background: var(--white);
+            border-bottom: 1px solid var(--border);
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .nav-buttons {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .btn-nav {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            font-size: 13px;
+            font-weight: 600;
+            border-radius: var(--radius-sm);
+            text-decoration: none;
+            transition: all 0.2s;
+            cursor: pointer;
+            border: none;
+            font-family: inherit;
+        }
+
+        .btn-back {
+            background: var(--white);
+            border: 1px solid var(--border);
+            color: var(--ink-2);
+        }
+
+        .btn-back:hover {
+            background: var(--bg);
+            border-color: var(--indigo);
+            color: var(--indigo);
+        }
+
+        .btn-dashboard {
+            background: var(--indigo-light);
+            color: var(--indigo);
+        }
+
+        .btn-dashboard:hover {
+            background: var(--indigo);
+            color: white;
+        }
+
+        .btn-ledger {
+            background: var(--white);
+            border: 1px solid var(--border);
+            color: var(--ink-2);
+        }
+
+        .btn-ledger:hover {
+            background: var(--indigo-light);
+            border-color: var(--indigo);
+            color: var(--indigo);
+        }
+
         /* Category Selector Styles */
         .category-selector {
             position: relative;
@@ -906,6 +974,49 @@
 
     <div class="app">
 
+        {{-- NEW NAVIGATION BAR WITH BACK BUTTONS --}}
+        <div class="nav-bar">
+            <div class="nav-buttons">
+                {{-- Back to Projects (Ledger) --}}
+                <a href="{{ route('projects.index') }}" class="btn-nav btn-back">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        stroke-width="2.5" stroke-linecap="round">
+                        <polyline points="15 18 9 12 15 6" />
+                    </svg>
+                    Back to Ledger
+                </a>
+
+                {{-- Back to Dashboard --}}
+                <a href="{{ route('dashboard') }}" class="btn-nav btn-dashboard">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        stroke-width="2" stroke-linecap="round">
+                        <rect x="3" y="3" width="7" height="7" />
+                        <rect x="14" y="3" width="7" height="7" />
+                        <rect x="14" y="14" width="7" height="7" />
+                        <rect x="3" y="14" width="7" height="7" />
+                    </svg>
+                    Dashboard
+                </a>
+
+                {{-- View All Documents --}}
+                <a href="{{ route('documents.index') }}" class="btn-nav btn-ledger">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        stroke-width="2" stroke-linecap="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                        <polyline points="14 2 14 8 20 8" />
+                        <line x1="16" y1="13" x2="8" y2="13" />
+                        <line x1="16" y1="17" x2="8" y2="17" />
+                    </svg>
+                    Documents
+                </a>
+            </div>
+
+            {{-- Current Project Indicator --}}
+            <div style="font-size: 12px; color: var(--ink-4);">
+                Current: <strong style="color: var(--indigo);">{{ $project->name }}</strong>
+            </div>
+        </div>
+
         {{-- Header --}}
         <div class="sp-header">
             <div style="flex:1;min-width:0;">
@@ -914,21 +1025,23 @@
                         stroke-width="2.5" stroke-linecap="round">
                         <polyline points="15 18 9 12 15 6" />
                     </svg>
-                    Projects
+                    All Projects
                 </a>
                 <h1 class="sp-title">{{ $project->name }}</h1>
                 @if ($project->description)
                     <p class="sp-desc">{{ $project->description }}</p>
                 @endif
             </div>
-            <button class="btn-edit" onclick="document.getElementById('editModal').classList.add('open')">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                    stroke-width="2.2" stroke-linecap="round">
-                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                </svg>
-                Edit
-            </button>
+            @if(Auth::user()->isAdmin())
+                <button class="btn-edit" onclick="document.getElementById('editModal').classList.add('open')">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        stroke-width="2.2" stroke-linecap="round">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                    </svg>
+                    Edit Project
+                </button>
+            @endif
         </div>
 
         {{-- Stats --}}
@@ -971,7 +1084,7 @@
                         <line x1="12" y1="8" x2="12" y2="16" />
                         <line x1="8" y1="12" x2="16" y2="12" />
                     </svg>
-                    Add
+                    Add Transaction
                 </button>
                 <button class="tab-btn" :class="{ active: tab==='ledger' }" @click="tab='ledger'">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -1128,9 +1241,6 @@
                         </div>
                     </div>
 
-                    {{-- Report Export Buttons --}}
-                    {{-- Report Export Buttons --}}
-                    {{-- Report Export Buttons --}}
                     {{-- Report Export Buttons --}}
                     <div class="report-buttons">
                         <a href="{{ route('projects.report.excel', $project) }}" class="btn-report btn-excel">
@@ -1390,6 +1500,7 @@
     </div>
 
     {{-- Edit Project Modal --}}
+    @if(Auth::user()->isAdmin())
     <div id="editModal" class="modal-bg" onclick="if(event.target===this)this.classList.remove('open')">
         <div class="modal-box">
             <div class="modal-handle"></div>
@@ -1418,6 +1529,7 @@
             </form>
         </div>
     </div>
+    @endif
 
     {{-- Image View Modal --}}
     <div id="imageModal" class="modal-bg" onclick="if(event.target===this)closeImageModal()">

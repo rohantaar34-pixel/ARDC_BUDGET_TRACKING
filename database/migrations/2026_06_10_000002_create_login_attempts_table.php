@@ -1,0 +1,27 @@
+
+<?php
+// database/migrations/2026_06_10_000002_create_login_attempts_table.php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::create('login_attempts', function (Blueprint $table) {
+            $table->id();
+            $table->string('ip_address', 45)->index();
+            $table->string('email')->nullable();
+            $table->integer('attempts')->default(0);
+            $table->timestamp('last_attempt_at')->nullable();
+            $table->timestamps();
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::dropIfExists('login_attempts');
+    }
+};
