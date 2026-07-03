@@ -6,11 +6,15 @@
     <div class="auth-wrap">
         <div class="auth-card">
             <div class="auth-card-head">
-                <h2>Sign In</h2>
-                <p>Restricted access only</p>
+                <h2>Reset Password</h2>
+                <p>Recover account access</p>
             </div>
 
             <div class="auth-card-body">
+                <p class="auth-caption">
+                    Enter your account email address and the system will send a reset link if that account exists.
+                </p>
+
                 @if (session('status'))
                     <div class="alert-box alert-success">
                         <span>{{ session('status') }}</span>
@@ -23,7 +27,7 @@
                     </div>
                 @endif
 
-                <form method="POST" action="{{ route('login.post') }}">
+                <form method="POST" action="{{ route('password.email') }}">
                     @csrf
 
                     <div class="f-group">
@@ -33,26 +37,11 @@
                             class="{{ $errors->has('email') ? 'is-err' : '' }}">
                     </div>
 
-                    <div class="f-group">
-                        <label for="password">Password</label>
-                        <input type="password" id="password" name="password" placeholder="Enter your password"
-                            autocomplete="current-password" class="{{ $errors->has('password') ? 'is-err' : '' }}">
-                    </div>
-
-                    <div class="auth-meta">
-                        <div class="remember-row">
-                            <input type="checkbox" id="remember" name="remember" {{ old('remember') ? 'checked' : '' }}>
-                            <label for="remember">Keep me signed in</label>
-                        </div>
-
-                        <a href="{{ route('password.request') }}" class="auth-link">Forgot password?</a>
-                    </div>
-
-                    <button type="submit" class="btn-primary">Sign In</button>
+                    <button type="submit" class="btn-primary">Email Reset Link</button>
                 </form>
 
                 <div class="auth-footnote">
-                    After 10 failed attempts, sign-in is locked for 5 minutes. No self-registration is available.
+                    <a href="{{ route('login') }}" class="auth-link">Back to sign in</a>
                 </div>
             </div>
         </div>

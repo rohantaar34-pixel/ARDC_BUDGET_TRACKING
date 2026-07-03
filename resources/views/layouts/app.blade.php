@@ -132,6 +132,7 @@
         <!-- Main Content -->
         <div class="flex-1 w-full px-4 sm:px-6 py-6 sm:py-12">
             <div class="max-w-7xl mx-auto">
+                @php($suppressGlobalAuthErrors = request()->routeIs('login', 'password.*'))
 
                 @if (session('success'))
                     <div
@@ -157,7 +158,7 @@
                     </div>
                 @endif
 
-                @if ($errors->any())
+                @if ($errors->any() && ! $suppressGlobalAuthErrors)
                     <div
                         class="mb-6 sm:mb-8 p-4 px-4 sm:px-6 bg-gradient-to-r from-red-50 to-red-100 border-2 border-red-600 text-red-700 rounded-xl animate-fade-in">
                         <h4 class="font-bold mb-2 text-sm sm:text-base">Validation Errors:</h4>

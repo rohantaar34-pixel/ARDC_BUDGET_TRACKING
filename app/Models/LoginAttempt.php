@@ -12,9 +12,11 @@ class LoginAttempt extends Model
         'email',
         'attempts',
         'last_attempt_at',
+        'lockout_until',
     ];
 
     protected $casts = [
         'last_attempt_at' => 'datetime',
+        'lockout_until' => 'datetime',
     ];
 }
