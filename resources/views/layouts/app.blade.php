@@ -387,7 +387,7 @@
 
                 <a href="{{ $homeRoute }}"
                     class="flex items-center gap-2 sm:gap-3 flex-shrink-0 hover:opacity-80 transition-opacity">
-                    <img src="{{ asset('images/logo.jpg') }}" alt="GEO CORP. Logo"
+                    <img src="{{ asset('images/Logo.jpg') }}" alt="GEO CORP. Logo"
                         class="h-10 sm:h-12 w-auto object-contain">
                     <div class="hidden sm:flex flex-col">
                         <span class="text-sm font-black text-slate-900">GEO CORP.</span>
