@@ -1,5 +1,11 @@
 <?php
 
+$appUrl = env('APP_URL');
+
+if (! $appUrl && env('RAILWAY_PUBLIC_DOMAIN')) {
+    $appUrl = 'https://'.env('RAILWAY_PUBLIC_DOMAIN');
+}
+
 return [
 
     /*
@@ -52,7 +58,7 @@ return [
     |
     */
 
-    'url' => env('APP_URL', 'http://localhost'),
+    'url' => $appUrl ?: 'http://localhost',
 
     /*
     |--------------------------------------------------------------------------

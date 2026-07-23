@@ -1,5 +1,26 @@
 <?php
 
+$appUrl = env('APP_URL');
+
+if (! $appUrl && env('RAILWAY_PUBLIC_DOMAIN')) {
+    $appUrl = 'https://'.env('RAILWAY_PUBLIC_DOMAIN');
+}
+
+$volumeMountPath = env('RAILWAY_VOLUME_MOUNT_PATH');
+$publicDiskRoot = env('PUBLIC_DISK_ROOT');
+$localDiskRoot = env('LOCAL_DISK_ROOT');
+
+if (! $publicDiskRoot && $volumeMountPath) {
+    $publicDiskRoot = rtrim($volumeMountPath, '/').'/app/public';
+}
+
+if (! $localDiskRoot && $volumeMountPath) {
+    $localDiskRoot = rtrim($volumeMountPath, '/').'/app/private';
+}
+
+$publicDiskRoot = $publicDiskRoot ?: storage_path('app/public');
+$localDiskRoot = $localDiskRoot ?: storage_path('app/private');
+
 return [
 
     /*
@@ -32,7 +53,7 @@ return [
 
         'local' => [
             'driver' => 'local',
-            'root' => storage_path('app/private'),
+            'root' => $localDiskRoot,
             'serve' => true,
             'throw' => false,
             'report' => false,
@@ -40,8 +61,8 @@ return [
 
         'public' => [
             'driver' => 'local',
-            'root' => storage_path('app/public'),
-            'url' => rtrim(env('APP_URL', 'http://localhost'), '/').'/storage',
+            'root' => $publicDiskRoot,
+            'url' => rtrim($appUrl ?: 'http://localhost', '/').'/storage',
             'visibility' => 'public',
             'throw' => false,
             'report' => false,
@@ -74,7 +95,7 @@ return [
     */
 
     'links' => [
-        public_path('storage') => storage_path('app/public'),
+        public_path('storage') => $publicDiskRoot,
     ],
 
 ];

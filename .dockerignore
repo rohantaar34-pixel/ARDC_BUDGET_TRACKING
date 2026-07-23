@@ -1,5 +1,6 @@
 .git
 .env
+.env.railway
 node_modules
 vendor
 storage/framework/cache/*
