@@ -7,7 +7,7 @@
     .mr-title { font-size:26px; font-weight:800; margin:0; }
     .mr-sub, .muted { color:#6b7280; font-size:14px; }
     .btn { display:inline-flex; align-items:center; justify-content:center; min-height:42px; border:0; border-radius:8px; padding:9px 13px; font-weight:800; font-size:12px; cursor:pointer; text-decoration:none; }
-    .btn-soft { background:#eef2ff; color:#4f46e5; }
+    .btn-soft { background:#ecfdf8; color:#0f766e; }
     .btn-approve { background:#0891b2; color:#fff; }
     .btn-reject { background:#fee2e2; color:#991b1b; }
     .btn:disabled { background:#94a3b8; opacity:.65; cursor:not-allowed; }

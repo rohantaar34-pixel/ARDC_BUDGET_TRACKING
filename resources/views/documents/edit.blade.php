@@ -33,7 +33,7 @@
         }
 
         .btn-submit {
-            background: #4f46e5;
+            background: #0f766e;
             color: white;
             padding: 12px 24px;
             border: none;

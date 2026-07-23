@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Project;
 use App\Models\ProjectMonitoringReport;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
@@ -201,7 +202,10 @@ class MonitoringController extends Controller
         $photo = $report->photos()->whereKey($photo)->firstOrFail();
         $user = Auth::user();
 
-        if (!$user->canManageOperations() && $report->user_id !== $user->id) {
+        if (
+            !$user->hasModuleAccess(User::MODULE_MONITORING_REVIEW)
+            && $report->user_id !== $user->id
+        ) {
             abort(403);
         }
 

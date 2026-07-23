@@ -3,39 +3,46 @@
 namespace App\Http\Controllers;
 
 use App\Models\Project;
-use Illuminate\Http\Response;
-use PhpOffice\PhpSpreadsheet\Spreadsheet;
-use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
-use PhpOffice\PhpSpreadsheet\Style\Fill;
-use PhpOffice\PhpSpreadsheet\Style\Alignment;
-use PhpOffice\PhpSpreadsheet\Style\Border;
-use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
 use Dompdf\Dompdf;
 use Dompdf\Options;
+use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Auth;
+use PhpOffice\PhpSpreadsheet\Cell\DataType;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use PhpOffice\PhpWord\IOFactory;
 use PhpOffice\PhpWord\PhpWord;
-use Illuminate\Support\Facades\Storage;
 
 class ProjectReportController extends Controller
 {
+    private const FORMULA_PREFIX_PATTERN = '/^[=+\-@]/';
+
     private function reportData(Project $project): array
     {
-        $transactions = $project->transactions()->orderBy('transaction_date')->get();
+        $transactions = $project->transactions()
+            ->with('expenseCategory')
+            ->orderBy('transaction_date')
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->get();
+
         $budgetAdditions = $transactions->where('type', 'budget_addition');
         $expenses = $transactions->where('type', 'expense');
 
         $categorySummary = $expenses
-            ->groupBy(fn($t) => $t->expenseCategory?->name ?? $t->category ?? 'Uncategorized')
-            ->map(fn($g) => $g->sum('amount'))
-            ->sortByDesc(fn($v) => $v);
+            ->groupBy(fn ($transaction) => $transaction->expenseCategory?->name ?? $transaction->category ?? 'Uncategorized')
+            ->map(fn ($group) => (float) $group->sum('amount'))
+            ->sortByDesc(fn ($amount) => $amount);
 
-        $reservedProcurement = $project->reserved_procurement;
-        $currentBudget = $project->budget
-            + $budgetAdditions->sum('amount')
-            - $expenses->sum('amount')
-            - $reservedProcurement;
-        $totalBudget = $project->budget + $budgetAdditions->sum('amount');
+        $reservedProcurement = (float) $project->reserved_procurement;
+        $totalBudget = (float) $project->budget + (float) $budgetAdditions->sum('amount');
+        $totalExpenses = (float) $expenses->sum('amount');
+        $currentBudget = $totalBudget - $totalExpenses - $reservedProcurement;
         $budgetUtilization = $totalBudget > 0
-            ? round((($expenses->sum('amount') + $reservedProcurement) / $totalBudget) * 100, 1)
+            ? round((($totalExpenses + $reservedProcurement) / $totalBudget) * 100, 1)
             : 0;
 
         return compact(
@@ -51,231 +58,253 @@ class ProjectReportController extends Controller
         );
     }
 
-    private function getLogoBase64(): string
+    private function assertCanExport(): void
     {
-        $logoPath = public_path('images/Logo.jpg');
-        if (file_exists($logoPath)) {
-            $imageData = base64_encode(file_get_contents($logoPath));
-            return 'data:image/jpeg;base64,' . $imageData;
+        if (!Auth::check() || !Auth::user()->hasModuleAccess(\App\Models\User::MODULE_LEDGER)) {
+            abort(403, 'You do not have permission to access this area.');
         }
-        return '';
     }
 
-    // ─────────────────────────────────────────────
-    //  EXCEL - Formal Black & White
-    // ─────────────────────────────────────────────
+    private function resolveLogoPath(): ?string
+    {
+        foreach ([public_path('images/logo.jpg'), public_path('images/Logo.jpg')] as $logoPath) {
+            if (file_exists($logoPath)) {
+                return $logoPath;
+            }
+        }
+
+        return null;
+    }
+
+    private function getLogoBase64(): string
+    {
+        $logoPath = $this->resolveLogoPath();
+
+        if ($logoPath === null) {
+            return '';
+        }
+
+        return 'data:image/jpeg;base64,' . base64_encode(file_get_contents($logoPath));
+    }
+
+    private function safeSpreadsheetText(?string $value): string
+    {
+        if ($value === null) {
+            return '';
+        }
+
+        return preg_match(self::FORMULA_PREFIX_PATTERN, ltrim($value)) ? "'{$value}" : $value;
+    }
+
+    private function setSheetText($sheet, string $cell, ?string $value): void
+    {
+        $sheet->setCellValueExplicit($cell, $this->safeSpreadsheetText($value), DataType::TYPE_STRING);
+    }
+
+    private function formatMoney(mixed $amount): string
+    {
+        return 'PHP ' . number_format((float) $amount, 2);
+    }
+
+    public function exportExcel(Project $project): Response
+    {
+        return $this->downloadExcel($project);
+    }
+
+    public function exportPdf(Project $project): Response
+    {
+        return $this->downloadPdf($project);
+    }
+
+    public function exportWord(Project $project): Response
+    {
+        return $this->downloadWord($project);
+    }
+
     public function downloadExcel(Project $project): Response
     {
-        $d = $this->reportData($project);
+        $this->assertCanExport();
+        $data = $this->reportData($project);
 
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('Financial Report');
 
-        // Black and white only - professional
-        $BLACK = '#000000';
-        $DARK_GRAY = '#333333';
-        $MEDIUM_GRAY = '#666666';
-        $LIGHT_GRAY = '#F5F5F5';
-        $WHITE = '#FFFFFF';
-        $BORDER = '#CCCCCC';
+        $black = '000000';
+        $darkGray = '333333';
+        $mediumGray = '666666';
+        $lightGray = 'F5F5F5';
+        $white = 'FFFFFF';
+        $border = 'CCCCCC';
 
-        // Set column widths
-        $sheet->getColumnDimension('A')->setWidth(14);
-        $sheet->getColumnDimension('B')->setWidth(35);
-        $sheet->getColumnDimension('C')->setWidth(12);
-        $sheet->getColumnDimension('D')->setWidth(18);
-        $sheet->getColumnDimension('E')->setWidth(20);
-        $sheet->getColumnDimension('F')->setWidth(15);
-        $sheet->getColumnDimension('G')->setWidth(15);
+        foreach (['A' => 14, 'B' => 35, 'C' => 14, 'D' => 18, 'E' => 22, 'F' => 16, 'G' => 18] as $column => $width) {
+            $sheet->getColumnDimension($column)->setWidth($width);
+        }
 
         $centerAlign = ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER];
-        $leftAlign = ['horizontal' => Alignment::HORIZONTAL_LEFT, 'vertical' => Alignment::VERTICAL_CENTER];
         $rightAlign = ['horizontal' => Alignment::HORIZONTAL_RIGHT, 'vertical' => Alignment::VERTICAL_CENTER];
 
-        // Row 1-2: Company Header
         $sheet->mergeCells('A1:G1');
         $sheet->setCellValue('A1', 'FINANCIAL STATEMENT REPORT');
-        $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(16)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($BLACK));
+        $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(16)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($black));
         $sheet->getStyle('A1')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
         $sheet->mergeCells('A2:G2');
-        $sheet->setCellValue('A2', $project->name);
-        $sheet->getStyle('A2')->getFont()->setSize(11)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($MEDIUM_GRAY));
+        $this->setSheetText($sheet, 'A2', $project->name);
+        $sheet->getStyle('A2')->getFont()->setSize(11)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($mediumGray));
         $sheet->getStyle('A2')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
-        // Row 3: Report Date
         $sheet->mergeCells('A3:G3');
         $sheet->setCellValue('A3', 'Report Date: ' . now()->format('F d, Y'));
-        $sheet->getStyle('A3')->getFont()->setSize(10)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($MEDIUM_GRAY));
+        $sheet->getStyle('A3')->getFont()->setSize(10)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color($mediumGray));
         $sheet->getStyle('A3')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
-        // Row 5: Summary Section
         $row = 5;
-        
-        // Summary Header
         $sheet->mergeCells("A{$row}:G{$row}");
         $sheet->setCellValue("A{$row}", 'EXECUTIVE SUMMARY');
         $sheet->getStyle("A{$row}")->applyFromArray([
-            'font' => ['bold' => true, 'size' => 11, 'color' => ['rgb' => $WHITE]],
-            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => $DARK_GRAY]],
+            'font' => ['bold' => true, 'size' => 11, 'color' => ['rgb' => $white]],
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => $darkGray]],
             'alignment' => $centerAlign,
         ]);
         $row++;
 
-        // Summary Data - 3 columns x 2 rows
         $summaryItems = [
-            ['Initial Budget', '₱' . number_format($project->budget, 2)],
-            ['Budget Additions', '₱' . number_format($d['budgetAdditions']->sum('amount'), 2)],
-            ['Total Budget', '₱' . number_format($d['totalBudget'], 2)],
-            ['Total Expenses', '₱' . number_format($d['expenses']->sum('amount'), 2)],
-            ['Current Balance', '₱' . number_format($d['currentBudget'], 2)],
-            ['Budget Utilization', $d['budgetUtilization'] . '%'],
+            ['Initial Budget', $this->formatMoney($project->budget)],
+            ['Budget Additions', $this->formatMoney($data['budgetAdditions']->sum('amount'))],
+            ['Total Budget', $this->formatMoney($data['totalBudget'])],
+            ['Total Expenses', $this->formatMoney($data['expenses']->sum('amount'))],
+            ['Current Balance', $this->formatMoney($data['currentBudget'])],
+            ['Budget Utilization', $data['budgetUtilization'] . '%'],
         ];
 
-        for ($i = 0; $i < count($summaryItems); $i++) {
-            $col = chr(65 + ($i % 3) * 2);
-            $colEnd = chr(65 + ($i % 3) * 2 + 1);
-            $currentRow = $row + floor($i / 3);
-            
-            $sheet->mergeCells("{$col}{$currentRow}:{$colEnd}{$currentRow}");
-            $sheet->setCellValue("{$col}{$currentRow}", $summaryItems[$i][0]);
-            $sheet->getStyle("{$col}{$currentRow}")->applyFromArray([
-                'font' => ['bold' => true, 'size' => 9, 'color' => ['rgb' => $MEDIUM_GRAY]],
-                'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => $LIGHT_GRAY]],
+        foreach ($summaryItems as $index => [$label, $value]) {
+            $col = chr(65 + ($index % 3) * 2);
+            $colEnd = chr(65 + ($index % 3) * 2 + 1);
+            $baseRow = $row + (intdiv($index, 3) * 2);
+
+            $sheet->mergeCells("{$col}{$baseRow}:{$colEnd}{$baseRow}");
+            $this->setSheetText($sheet, "{$col}{$baseRow}", $label);
+            $sheet->getStyle("{$col}{$baseRow}")->applyFromArray([
+                'font' => ['bold' => true, 'size' => 9, 'color' => ['rgb' => $mediumGray]],
+                'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => $lightGray]],
                 'alignment' => $centerAlign,
-                'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => $BORDER]]]
+                'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => $border]]],
             ]);
-            
-            $sheet->setCellValue("{$col}" . ($currentRow + 1), $summaryItems[$i][1]);
-            $sheet->getStyle("{$col}" . ($currentRow + 1))->applyFromArray([
-                'font' => ['bold' => true, 'size' => 11, 'color' => ['rgb' => $BLACK]],
+
+            $sheet->mergeCells("{$col}" . ($baseRow + 1) . ":{$colEnd}" . ($baseRow + 1));
+            $this->setSheetText($sheet, "{$col}" . ($baseRow + 1), $value);
+            $sheet->getStyle("{$col}" . ($baseRow + 1))->applyFromArray([
+                'font' => ['bold' => true, 'size' => 11, 'color' => ['rgb' => $black]],
                 'alignment' => $centerAlign,
-                'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => $BORDER]]]
+                'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => $border]]],
             ]);
         }
 
-        $row += 3;
-
-        // Transactions Section
+        $row += 5;
         $sheet->mergeCells("A{$row}:G{$row}");
         $sheet->setCellValue("A{$row}", 'TRANSACTION LEDGER');
         $sheet->getStyle("A{$row}")->applyFromArray([
-            'font' => ['bold' => true, 'size' => 11, 'color' => ['rgb' => $WHITE]],
-            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => $DARK_GRAY]],
+            'font' => ['bold' => true, 'size' => 11, 'color' => ['rgb' => $white]],
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => $darkGray]],
             'alignment' => $centerAlign,
         ]);
         $row++;
 
-        // Table Headers
-        $headers = ['DATE', 'DESCRIPTION', 'TYPE', 'CATEGORY', 'CLIENT/REFERENCE', 'AMOUNT (₱)', 'RUNNING BALANCE (₱)'];
-        $col = 'A';
+        $headers = ['DATE', 'DESCRIPTION', 'TYPE', 'CATEGORY', 'CLIENT/REFERENCE', 'AMOUNT (PHP)', 'RUNNING BALANCE (PHP)'];
+        $column = 'A';
         foreach ($headers as $header) {
-            $sheet->setCellValue($col . $row, $header);
-            $sheet->getStyle($col . $row)->applyFromArray([
-                'font' => ['bold' => true, 'size' => 9, 'color' => ['rgb' => $WHITE]],
-                'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => $DARK_GRAY]],
-                'alignment' => in_array($header, ['AMOUNT (₱)', 'RUNNING BALANCE (₱)']) ? $rightAlign : $centerAlign,
-                'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => $BORDER]]]
+            $this->setSheetText($sheet, $column . $row, $header);
+            $sheet->getStyle($column . $row)->applyFromArray([
+                'font' => ['bold' => true, 'size' => 9, 'color' => ['rgb' => $white]],
+                'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => $darkGray]],
+                'alignment' => in_array($header, ['AMOUNT (PHP)', 'RUNNING BALANCE (PHP)'], true) ? $rightAlign : $centerAlign,
+                'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => $border]]],
             ]);
-            $col++;
+            $column++;
         }
         $row++;
 
-        // Transaction Rows
-        $running = $project->budget;
-        $rowNum = $row;
-        foreach ($d['transactions'] as $idx => $tran) {
-            $running += $tran->type === 'budget_addition' ? $tran->amount : -$tran->amount;
-            $bgColor = $idx % 2 === 0 ? $WHITE : $LIGHT_GRAY;
+        $runningBalance = (float) $project->budget;
+        foreach ($data['transactions'] as $index => $transaction) {
+            $runningBalance += $transaction->type === 'budget_addition'
+                ? (float) $transaction->amount
+                : -(float) $transaction->amount;
 
-            $sheet->setCellValue('A' . $rowNum, $tran->transaction_date->format('Y-m-d'));
-            $sheet->setCellValue('B' . $rowNum, $tran->expense_name ?? ($tran->description ?? '—'));
-            $sheet->setCellValue('C' . $rowNum, $tran->type === 'budget_addition' ? 'ADDITION' : 'EXPENSE');
-            $sheet->setCellValue('D' . $rowNum, $tran->category ?? '—');
-            $sheet->setCellValue('E' . $rowNum, $tran->client_name ?? ($tran->invoice_ref ?? '—'));
-            $sheet->setCellValue('F' . $rowNum, $tran->amount);
-            $sheet->setCellValue('G' . $rowNum, $running);
+            $bgColor = $index % 2 === 0 ? $white : $lightGray;
+            $currentRow = $row + $index;
 
-            $sheet->getStyle('A' . $rowNum . ':G' . $rowNum)->applyFromArray([
+            $this->setSheetText($sheet, 'A' . $currentRow, $transaction->transaction_date?->format('Y-m-d'));
+            $this->setSheetText($sheet, 'B' . $currentRow, $transaction->expense_name ?? $transaction->description ?? '-');
+            $this->setSheetText($sheet, 'C' . $currentRow, $transaction->type === 'budget_addition' ? 'ADDITION' : 'EXPENSE');
+            $this->setSheetText($sheet, 'D' . $currentRow, $transaction->category ?? '-');
+            $this->setSheetText($sheet, 'E' . $currentRow, $transaction->client_name ?? $transaction->invoice_ref ?? '-');
+            $sheet->setCellValue('F' . $currentRow, (float) $transaction->amount);
+            $sheet->setCellValue('G' . $currentRow, $runningBalance);
+
+            $sheet->getStyle('A' . $currentRow . ':G' . $currentRow)->applyFromArray([
                 'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => $bgColor]],
-                'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => $BORDER]]]
+                'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => $border]]],
             ]);
-            
-            // Fix currency formatting - Use PHP currency code instead of symbol
-            $sheet->getStyle('F' . $rowNum)->getNumberFormat()->setFormatCode('"PHP"#,##0.00');
-            $sheet->getStyle('G' . $rowNum)->getNumberFormat()->setFormatCode('"PHP"#,##0.00');
-            $sheet->getStyle('F' . $rowNum)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
-            $sheet->getStyle('G' . $rowNum)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
-            $sheet->getStyle('C' . $rowNum)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-
-            $rowNum++;
+            $sheet->getStyle('F' . $currentRow . ':G' . $currentRow)->getNumberFormat()->setFormatCode('"PHP "#,##0.00');
+            $sheet->getStyle('F' . $currentRow . ':G' . $currentRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+            $sheet->getStyle('C' . $currentRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
         }
 
-        $row = $rowNum + 2;
-
-        // Category Summary Section
+        $row += $data['transactions']->count() + 2;
         $sheet->mergeCells("A{$row}:G{$row}");
         $sheet->setCellValue("A{$row}", 'EXPENSE BREAKDOWN BY CATEGORY');
         $sheet->getStyle("A{$row}")->applyFromArray([
-            'font' => ['bold' => true, 'size' => 11, 'color' => ['rgb' => $WHITE]],
-            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => $DARK_GRAY]],
+            'font' => ['bold' => true, 'size' => 11, 'color' => ['rgb' => $white]],
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => $darkGray]],
             'alignment' => $centerAlign,
         ]);
         $row++;
 
-        $sheet->setCellValue('A' . $row, 'CATEGORY');
-        $sheet->setCellValue('B' . $row, 'AMOUNT (PHP)');
-        $sheet->setCellValue('C' . $row, 'PERCENTAGE');
+        $this->setSheetText($sheet, 'A' . $row, 'CATEGORY');
+        $this->setSheetText($sheet, 'B' . $row, 'AMOUNT (PHP)');
+        $this->setSheetText($sheet, 'C' . $row, 'PERCENTAGE');
         $sheet->getStyle('A' . $row . ':C' . $row)->applyFromArray([
-            'font' => ['bold' => true, 'size' => 9, 'color' => ['rgb' => $WHITE]],
-            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => $DARK_GRAY]],
+            'font' => ['bold' => true, 'size' => 9, 'color' => ['rgb' => $white]],
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => $darkGray]],
             'alignment' => $centerAlign,
-            'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => $BORDER]]]
+            'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => $border]]],
         ]);
         $row++;
 
-        $expenseTotal = $d['expenses']->sum('amount');
-        $idx = 0;
-        foreach ($d['categorySummary'] as $cat => $amt) {
-            $pct = $expenseTotal > 0 ? round($amt / $expenseTotal * 100, 2) : 0;
-            $bgColor = $idx % 2 === 0 ? $WHITE : $LIGHT_GRAY;
+        $expenseTotal = (float) $data['expenses']->sum('amount');
+        foreach ($data['categorySummary'] as $category => $amount) {
+            $percentage = $expenseTotal > 0 ? round(((float) $amount / $expenseTotal) * 100, 2) : 0;
 
-            $sheet->setCellValue('A' . $row, $cat);
-            $sheet->setCellValue('B' . $row, $amt);
-            $sheet->setCellValue('C' . $row, $pct . '%');
+            $this->setSheetText($sheet, 'A' . $row, $category);
+            $sheet->setCellValue('B' . $row, (float) $amount);
+            $this->setSheetText($sheet, 'C' . $row, $percentage . '%');
 
             $sheet->getStyle('A' . $row . ':C' . $row)->applyFromArray([
-                'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => $bgColor]],
-                'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => $BORDER]]]
+                'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => $lightGray]],
+                'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => $border]]],
             ]);
-            $sheet->getStyle('B' . $row)->getNumberFormat()->setFormatCode('"PHP"#,##0.00');
-            $sheet->getStyle('B' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
-            $sheet->getStyle('C' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+            $sheet->getStyle('B' . $row)->getNumberFormat()->setFormatCode('"PHP "#,##0.00');
+            $sheet->getStyle('B' . $row . ':C' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
             $row++;
-            $idx++;
         }
 
-        // Total Row
-        $sheet->setCellValue('A' . $row, 'TOTAL');
+        $this->setSheetText($sheet, 'A' . $row, 'TOTAL');
         $sheet->setCellValue('B' . $row, $expenseTotal);
-        $sheet->setCellValue('C' . $row, '100%');
+        $this->setSheetText($sheet, 'C' . $row, '100%');
         $sheet->getStyle('A' . $row . ':C' . $row)->applyFromArray([
             'font' => ['bold' => true],
-            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => $LIGHT_GRAY]],
-            'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => $BORDER]]]
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => $lightGray]],
+            'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => $border]]],
         ]);
-        $sheet->getStyle('B' . $row)->getNumberFormat()->setFormatCode('"PHP"#,##0.00');
-        $sheet->getStyle('B' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
-        $sheet->getStyle('C' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+        $sheet->getStyle('B' . $row)->getNumberFormat()->setFormatCode('"PHP "#,##0.00');
+        $sheet->getStyle('B' . $row . ':C' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
 
         $row += 2;
-
-        // Footer
         $sheet->mergeCells("A{$row}:G{$row}");
         $sheet->setCellValue("A{$row}", 'This is a computer-generated document. No signature required.');
         $sheet->getStyle("A{$row}")->applyFromArray([
-            'font' => ['italic' => true, 'size' => 8, 'color' => ['rgb' => $MEDIUM_GRAY]],
+            'font' => ['italic' => true, 'size' => 8, 'color' => ['rgb' => $mediumGray]],
             'alignment' => $centerAlign,
         ]);
 
@@ -283,49 +312,46 @@ class ProjectReportController extends Controller
         $writer = new Xlsx($spreadsheet);
         ob_start();
         $writer->save('php://output');
-        $content = ob_get_clean();
+        $content = (string) ob_get_clean();
 
         return response($content, 200, [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+            'X-Content-Type-Options' => 'nosniff',
         ]);
     }
 
-    // ─────────────────────────────────────────────
-    //  PDF - Formal with Logo (Fixed Currency)
-    // ─────────────────────────────────────────────
     public function downloadPdf(Project $project): Response
     {
-        $d = $this->reportData($project);
-        $html = $this->buildFormalReportHtml($d);
+        $this->assertCanExport();
 
         $options = new Options();
-        $options->set('defaultFont', 'DejaVu Sans'); // Changed from Helvetica to support ₱
+        $options->set('defaultFont', 'DejaVu Sans');
         $options->set('isRemoteEnabled', true);
         $options->set('isHtml5ParserEnabled', true);
         $options->set('chroot', realpath(base_path()));
 
         $pdf = new Dompdf($options);
-        $pdf->loadHtml($html);
+        $pdf->loadHtml($this->buildFormalReportHtml($this->reportData($project)));
         $pdf->setPaper('A4', 'portrait');
         $pdf->render();
 
         $filename = 'Financial_Report_' . str($project->name)->slug() . '_' . date('Y-m-d') . '.pdf';
+
         return response($pdf->output(), 200, [
             'Content-Type' => 'application/pdf',
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+            'X-Content-Type-Options' => 'nosniff',
         ]);
     }
 
-    // ─────────────────────────────────────────────
-    //  WORD - Formal with Logo
-    // ─────────────────────────────────────────────
     public function downloadWord(Project $project): Response
     {
-        $d = $this->reportData($project);
+        $this->assertCanExport();
+        $data = $this->reportData($project);
+
         $phpWord = new PhpWord();
-        
-        $phpWord->setDefaultFontName('Helvetica');
+        $phpWord->setDefaultFontName('Arial');
         $phpWord->setDefaultFontSize(10);
 
         $section = $phpWord->addSection([
@@ -335,329 +361,238 @@ class ProjectReportController extends Controller
             'marginRight' => 1200,
         ]);
 
-        // Add logo (if exists)
-        $logoPath = public_path('images/Logo.jpg');
-        if (file_exists($logoPath)) {
+        $logoPath = $this->resolveLogoPath();
+        if ($logoPath !== null) {
             $section->addImage($logoPath, ['width' => 80, 'height' => 80, 'alignment' => 'center']);
         }
 
-        // Title
-        $section->addText('FINANCIAL STATEMENT REPORT', ['bold' => true, 'size' => 18, 'color' => '000000'], ['alignment' => 'center']);
+        $section->addText('FINANCIAL STATEMENT REPORT', ['bold' => true, 'size' => 18], ['alignment' => 'center']);
         $section->addText($project->name, ['size' => 12, 'color' => '666666'], ['alignment' => 'center']);
         $section->addText('Report Date: ' . now()->format('F d, Y'), ['size' => 10, 'color' => '666666'], ['alignment' => 'center']);
-        $section->addTextBreak(1);
+        $section->addTextBreak();
 
-        // Summary Table - Compact 2x3 grid
         $section->addText('SUMMARY', ['bold' => true, 'size' => 12], ['alignment' => 'center']);
         $section->addTextBreak(0.5);
 
         $summaryTable = $section->addTable(['borderSize' => 1, 'borderColor' => 'CCCCCC', 'cellMargin' => 80]);
-        
-        $summaryData = [
-            ['Initial Budget', '₱' . number_format($project->budget, 2)],
-            ['Budget Additions', '₱' . number_format($d['budgetAdditions']->sum('amount'), 2)],
-            ['Total Budget', '₱' . number_format($d['totalBudget'], 2)],
-            ['Total Expenses', '₱' . number_format($d['expenses']->sum('amount'), 2)],
-            ['Current Balance', '₱' . number_format($d['currentBudget'], 2)],
-            ['Budget Utilization', $d['budgetUtilization'] . '%'],
+        $summaryItems = [
+            ['Initial Budget', $this->formatMoney($project->budget)],
+            ['Budget Additions', $this->formatMoney($data['budgetAdditions']->sum('amount'))],
+            ['Total Budget', $this->formatMoney($data['totalBudget'])],
+            ['Total Expenses', $this->formatMoney($data['expenses']->sum('amount'))],
+            ['Current Balance', $this->formatMoney($data['currentBudget'])],
+            ['Budget Utilization', $data['budgetUtilization'] . '%'],
         ];
 
-        for ($i = 0; $i < 2; $i++) {
-            $row = $summaryTable->addRow();
-            for ($j = 0; $j < 3; $j++) {
-                $idx = $i * 3 + $j;
-                if ($idx < count($summaryData)) {
-                    $cell = $row->addCell(2500);
-                    $cell->addText($summaryData[$idx][0], ['bold' => true, 'size' => 8, 'color' => '666666'], ['alignment' => 'center']);
-                    $cell->addText($summaryData[$idx][1], ['bold' => true, 'size' => 12], ['alignment' => 'center']);
+        for ($rowIndex = 0; $rowIndex < 2; $rowIndex++) {
+            $tableRow = $summaryTable->addRow();
+
+            for ($columnIndex = 0; $columnIndex < 3; $columnIndex++) {
+                $summaryIndex = ($rowIndex * 3) + $columnIndex;
+
+                if (!isset($summaryItems[$summaryIndex])) {
+                    continue;
                 }
+
+                [$label, $value] = $summaryItems[$summaryIndex];
+                $cell = $tableRow->addCell(2500);
+                $cell->addText($label, ['bold' => true, 'size' => 8, 'color' => '666666'], ['alignment' => 'center']);
+                $cell->addText($value, ['bold' => true, 'size' => 12], ['alignment' => 'center']);
             }
         }
 
-        $section->addTextBreak(1);
-
-        // Transactions Table
+        $section->addTextBreak();
         $section->addText('TRANSACTION LEDGER', ['bold' => true, 'size' => 12], ['alignment' => 'center']);
         $section->addTextBreak(0.5);
 
         $ledgerTable = $section->addTable(['borderSize' => 1, 'borderColor' => 'CCCCCC', 'cellMargin' => 60]);
-        
-        // Headers
         $headerRow = $ledgerTable->addRow();
-        $headers = ['DATE', 'DESCRIPTION', 'TYPE', 'CATEGORY', 'CLIENT', 'AMOUNT', 'BALANCE'];
-        foreach ($headers as $header) {
+        foreach (['DATE', 'DESCRIPTION', 'TYPE', 'CATEGORY', 'CLIENT/REFERENCE', 'AMOUNT', 'BALANCE'] as $header) {
             $headerRow->addCell(null, ['bgColor' => '333333'])->addText($header, ['bold' => true, 'color' => 'FFFFFF', 'size' => 8], ['alignment' => 'center']);
         }
 
-        $running = $project->budget;
-        foreach ($d['transactions'] as $idx => $tran) {
-            $running += $tran->type === 'budget_addition' ? $tran->amount : -$tran->amount;
-            $bgColor = $idx % 2 == 0 ? 'FFFFFF' : 'F5F5F5';
-            $row = $ledgerTable->addRow();
-            $row->addCell(null, ['bgColor' => $bgColor])->addText($tran->transaction_date->format('Y-m-d'), ['size' => 8]);
-            $row->addCell(null, ['bgColor' => $bgColor])->addText($tran->expense_name ?? ($tran->description ?? '—'), ['size' => 8]);
-            $row->addCell(null, ['bgColor' => $bgColor])->addText($tran->type === 'budget_addition' ? 'ADD' : 'EXP', ['size' => 8], ['alignment' => 'center']);
-            $row->addCell(null, ['bgColor' => $bgColor])->addText($tran->category ?? '—', ['size' => 8]);
-            $row->addCell(null, ['bgColor' => $bgColor])->addText($tran->client_name ?? '—', ['size' => 8]);
-            $row->addCell(null, ['bgColor' => $bgColor])->addText('₱' . number_format($tran->amount, 2), ['size' => 8], ['alignment' => 'right']);
-            $row->addCell(null, ['bgColor' => $bgColor])->addText('₱' . number_format($running, 2), ['size' => 8], ['alignment' => 'right']);
+        $runningBalance = (float) $project->budget;
+        foreach ($data['transactions'] as $index => $transaction) {
+            $runningBalance += $transaction->type === 'budget_addition'
+                ? (float) $transaction->amount
+                : -(float) $transaction->amount;
+
+            $bgColor = $index % 2 === 0 ? 'FFFFFF' : 'F5F5F5';
+            $tableRow = $ledgerTable->addRow();
+            $tableRow->addCell(null, ['bgColor' => $bgColor])->addText($transaction->transaction_date?->format('Y-m-d') ?? '-', ['size' => 8]);
+            $tableRow->addCell(null, ['bgColor' => $bgColor])->addText($transaction->expense_name ?? $transaction->description ?? '-', ['size' => 8]);
+            $tableRow->addCell(null, ['bgColor' => $bgColor])->addText($transaction->type === 'budget_addition' ? 'ADD' : 'EXP', ['size' => 8], ['alignment' => 'center']);
+            $tableRow->addCell(null, ['bgColor' => $bgColor])->addText($transaction->category ?? '-', ['size' => 8]);
+            $tableRow->addCell(null, ['bgColor' => $bgColor])->addText($transaction->client_name ?? $transaction->invoice_ref ?? '-', ['size' => 8]);
+            $tableRow->addCell(null, ['bgColor' => $bgColor])->addText($this->formatMoney($transaction->amount), ['size' => 8], ['alignment' => 'right']);
+            $tableRow->addCell(null, ['bgColor' => $bgColor])->addText($this->formatMoney($runningBalance), ['size' => 8], ['alignment' => 'right']);
         }
 
-        $section->addTextBreak(1);
-
-        // Category Summary
+        $section->addTextBreak();
         $section->addText('EXPENSE BREAKDOWN BY CATEGORY', ['bold' => true, 'size' => 12], ['alignment' => 'center']);
         $section->addTextBreak(0.5);
 
-        $catTable = $section->addTable(['borderSize' => 1, 'borderColor' => 'CCCCCC']);
-        $catHeaderRow = $catTable->addRow();
-        $catHeaderRow->addCell(null, ['bgColor' => '333333'])->addText('CATEGORY', ['bold' => true, 'color' => 'FFFFFF']);
-        $catHeaderRow->addCell(null, ['bgColor' => '333333'])->addText('AMOUNT (₱)', ['bold' => true, 'color' => 'FFFFFF'], ['alignment' => 'right']);
-        $catHeaderRow->addCell(null, ['bgColor' => '333333'])->addText('PERCENTAGE', ['bold' => true, 'color' => 'FFFFFF'], ['alignment' => 'right']);
+        $categoryTable = $section->addTable(['borderSize' => 1, 'borderColor' => 'CCCCCC']);
+        $categoryHeader = $categoryTable->addRow();
+        $categoryHeader->addCell(null, ['bgColor' => '333333'])->addText('CATEGORY', ['bold' => true, 'color' => 'FFFFFF']);
+        $categoryHeader->addCell(null, ['bgColor' => '333333'])->addText('AMOUNT', ['bold' => true, 'color' => 'FFFFFF'], ['alignment' => 'right']);
+        $categoryHeader->addCell(null, ['bgColor' => '333333'])->addText('PERCENTAGE', ['bold' => true, 'color' => 'FFFFFF'], ['alignment' => 'right']);
 
-        $expenseTotal = $d['expenses']->sum('amount');
-        $idx = 0;
-        foreach ($d['categorySummary'] as $cat => $amt) {
-            $pct = $expenseTotal > 0 ? round($amt / $expenseTotal * 100, 2) : 0;
-            $bgColor = $idx % 2 == 0 ? 'FFFFFF' : 'F5F5F5';
-            $row = $catTable->addRow();
-            $row->addCell(null, ['bgColor' => $bgColor])->addText($cat);
-            $row->addCell(null, ['bgColor' => $bgColor])->addText('₱' . number_format($amt, 2), [], ['alignment' => 'right']);
-            $row->addCell(null, ['bgColor' => $bgColor])->addText($pct . '%', [], ['alignment' => 'right']);
-            $idx++;
+        $expenseTotal = (float) $data['expenses']->sum('amount');
+        foreach ($data['categorySummary'] as $category => $amount) {
+            $percentage = $expenseTotal > 0 ? round(((float) $amount / $expenseTotal) * 100, 2) : 0;
+            $tableRow = $categoryTable->addRow();
+            $tableRow->addCell(null, ['bgColor' => 'F5F5F5'])->addText($category);
+            $tableRow->addCell(null, ['bgColor' => 'F5F5F5'])->addText($this->formatMoney($amount), [], ['alignment' => 'right']);
+            $tableRow->addCell(null, ['bgColor' => 'F5F5F5'])->addText($percentage . '%', [], ['alignment' => 'right']);
         }
-        
-        // Total row
-        $totalRow = $catTable->addRow();
+
+        $totalRow = $categoryTable->addRow();
         $totalRow->addCell(null, ['bgColor' => 'F0F0F0'])->addText('TOTAL', ['bold' => true]);
-        $totalRow->addCell(null, ['bgColor' => 'F0F0F0'])->addText('₱' . number_format($expenseTotal, 2), ['bold' => true], ['alignment' => 'right']);
+        $totalRow->addCell(null, ['bgColor' => 'F0F0F0'])->addText($this->formatMoney($expenseTotal), ['bold' => true], ['alignment' => 'right']);
         $totalRow->addCell(null, ['bgColor' => 'F0F0F0'])->addText('100%', ['bold' => true], ['alignment' => 'right']);
 
-        // Footer
-        $section->addTextBreak(1);
+        $section->addTextBreak();
         $section->addText('This is a computer-generated document. No signature required.', ['italic' => true, 'size' => 8, 'color' => '999999'], ['alignment' => 'center']);
 
         $filename = 'Financial_Report_' . str($project->name)->slug() . '_' . date('Y-m-d') . '.docx';
-        $writer = \PhpOffice\PhpWord\IOFactory::createWriter($phpWord, 'Word2007');
+        $writer = IOFactory::createWriter($phpWord, 'Word2007');
         ob_start();
         $writer->save('php://output');
-        $content = ob_get_clean();
+        $content = (string) ob_get_clean();
 
         return response($content, 200, [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+            'X-Content-Type-Options' => 'nosniff',
         ]);
     }
 
-    // ─────────────────────────────────────────────
-    //  Formal HTML Template for PDF (Fixed Currency)
-    // ─────────────────────────────────────────────
-    private function buildFormalReportHtml(array $d): string
+    private function buildFormalReportHtml(array $data): string
     {
-        $project = $d['project'];
-        $transactions = $d['transactions'];
-        $categorySummary = $d['categorySummary'];
-        $expenseTotal = $d['expenses']->sum('amount');
+        $project = $data['project'];
+        $transactions = $data['transactions'];
+        $categorySummary = $data['categorySummary'];
+        $expenseTotal = (float) $data['expenses']->sum('amount');
         $logoBase64 = $this->getLogoBase64();
 
-        $running = $project->budget;
-        $rows = '';
-        foreach ($transactions as $tran) {
-            $running += $tran->type === 'budget_addition' ? $tran->amount : -$tran->amount;
-            $rows .= "
+        $runningBalance = (float) $project->budget;
+        $transactionRows = '';
+        foreach ($transactions as $transaction) {
+            $runningBalance += $transaction->type === 'budget_addition'
+                ? (float) $transaction->amount
+                : -(float) $transaction->amount;
+
+            $transactionRows .= '
             <tr>
-                <td>" . $tran->transaction_date->format('Y-m-d') . "</td>
-                <td>" . htmlspecialchars($tran->expense_name ?? $tran->description ?? '—') . "</td>
-                <td>" . ($tran->type === 'budget_addition' ? 'ADDITION' : 'EXPENSE') . "</td>
-                <td>" . htmlspecialchars($tran->category ?? '—') . "</td>
-                <td>" . htmlspecialchars($tran->client_name ?? '—') . "</td>
-                <td class='number'>₱" . number_format($tran->amount, 2) . "</td>
-                <td class='number'>₱" . number_format($running, 2) . "</td>
-            </tr>";
+                <td>' . e($transaction->transaction_date?->format('Y-m-d') ?? '-') . '</td>
+                <td>' . e($transaction->expense_name ?? $transaction->description ?? '-') . '</td>
+                <td>' . e($transaction->type === 'budget_addition' ? 'ADDITION' : 'EXPENSE') . '</td>
+                <td>' . e($transaction->category ?? '-') . '</td>
+                <td>' . e($transaction->client_name ?? $transaction->invoice_ref ?? '-') . '</td>
+                <td class="number">' . e($this->formatMoney($transaction->amount)) . '</td>
+                <td class="number">' . e($this->formatMoney($runningBalance)) . '</td>
+            </tr>';
         }
 
-        $catRows = '';
-        foreach ($categorySummary as $cat => $amt) {
-            $pct = $expenseTotal > 0 ? round($amt / $expenseTotal * 100, 2) : 0;
-            $catRows .= "
+        $categoryRows = '';
+        foreach ($categorySummary as $category => $amount) {
+            $percentage = $expenseTotal > 0 ? round(((float) $amount / $expenseTotal) * 100, 2) : 0;
+
+            $categoryRows .= '
             <tr>
-                <td>" . htmlspecialchars($cat) . "</td>
-                <td class='number'>₱" . number_format($amt, 2) . "</td>
-                <td class='number'>{$pct}%</td>
-            </tr>";
+                <td>' . e($category) . '</td>
+                <td class="number">' . e($this->formatMoney($amount)) . '</td>
+                <td class="number">' . e($percentage . '%') . '</td>
+            </tr>';
         }
 
-        $logoHtml = '';
-        if ($logoBase64) {
-            $logoHtml = "<div class='logo'><img src='{$logoBase64}' alt='Logo'></div>";
-        }
+        $logoHtml = $logoBase64 !== ''
+            ? '<div class="logo"><img src="' . $logoBase64 . '" alt="Logo"></div>'
+            : '';
 
-        return "
+        return '
         <!DOCTYPE html>
         <html>
         <head>
-            <meta charset='utf-8'>
-            <title>Financial Report - {$project->name}</title>
+            <meta charset="utf-8">
+            <title>Financial Report - ' . e($project->name) . '</title>
             <style>
-                @page {
-                    margin: 1.5cm;
-                    size: A4;
-                }
+                @page { margin: 1.5cm; size: A4; }
                 body {
-                    font-family: 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif;
+                    font-family: DejaVu Sans, Arial, sans-serif;
                     font-size: 10pt;
                     line-height: 1.4;
-                    color: #000000;
+                    color: #111827;
                     margin: 0;
-                    padding: 0;
                 }
                 .header {
                     text-align: center;
-                    margin-bottom: 25px;
-                    padding-bottom: 15px;
-                    border-bottom: 2px solid #000000;
+                    margin-bottom: 24px;
+                    padding-bottom: 12px;
+                    border-bottom: 2px solid #111827;
                 }
-                .logo {
-                    margin-bottom: 8px;
-                }
-                .logo img {
-                    max-width: 60px;
-                    max-height: 60px;
-                }
-                .company-name {
-                    font-size: 16pt;
-                    font-weight: bold;
-                    letter-spacing: 2px;
-                    margin-bottom: 5px;
-                }
-                .project-name {
-                    font-size: 13pt;
-                    font-weight: bold;
-                    margin-top: 8px;
-                    color: #000000;
-                }
-                .report-date {
-                    font-size: 9pt;
-                    color: #555555;
-                    margin-top: 5px;
-                }
-                
-                /* Summary section - compact */
-                .summary-section {
-                    margin: 20px 0;
-                }
-                .summary-title {
+                .logo { margin-bottom: 8px; }
+                .logo img { max-width: 60px; max-height: 60px; }
+                .company-name { font-size: 16pt; font-weight: bold; margin-bottom: 4px; }
+                .project-name { font-size: 12pt; font-weight: bold; margin-bottom: 4px; }
+                .report-date { font-size: 9pt; color: #6b7280; }
+                .summary-title, .section-title {
                     font-size: 11pt;
                     font-weight: bold;
-                    margin-bottom: 10px;
-                    padding-bottom: 3px;
-                    border-bottom: 1px solid #000000;
+                    margin: 18px 0 10px;
+                    padding-bottom: 4px;
+                    border-bottom: 1px solid #111827;
                 }
-                .summary-table {
-                    width: 100%;
-                    border-collapse: collapse;
-                    margin-bottom: 10px;
-                }
-                .summary-table td {
-                    border: none;
-                    padding: 6px 8px;
-                    vertical-align: top;
-                }
-                .summary-label {
-                    font-weight: bold;
-                    width: 25%;
-                    color: #333333;
-                }
-                .summary-value {
-                    width: 25%;
-                    font-weight: normal;
-                }
-                
-                /* Section titles */
-                .section-title {
-                    font-size: 11pt;
-                    font-weight: bold;
-                    margin: 20px 0 10px 0;
-                    padding-bottom: 5px;
-                    border-bottom: 1.5px solid #000000;
-                }
-                
-                /* Tables */
-                table {
-                    width: 100%;
-                    border-collapse: collapse;
-                    margin-bottom: 20px;
-                }
-                th {
-                    background: #333333;
-                    color: #ffffff;
-                    padding: 8px 6px;
-                    font-size: 9pt;
-                    font-weight: bold;
-                    text-align: center;
-                    border: 1px solid #555555;
-                }
-                td {
-                    padding: 6px;
-                    border: 1px solid #cccccc;
-                    font-size: 9pt;
-                    vertical-align: top;
-                }
-                .number {
-                    text-align: right;
-                    font-family: 'DejaVu Sans', monospace;
-                }
-                tr:nth-child(even) {
-                    background: #f9f9f9;
-                }
-                
-                /* Footer */
+                table { width: 100%; border-collapse: collapse; margin-bottom: 18px; }
+                th, td { border: 1px solid #d1d5db; padding: 6px; font-size: 9pt; }
+                th { background: #333333; color: #ffffff; text-align: center; }
+                .summary-table td { width: 25%; border: none; padding: 4px 6px; }
+                .summary-label { font-weight: bold; color: #374151; }
+                .number { text-align: right; }
+                tr:nth-child(even) { background: #f9fafb; }
                 .footer {
-                    margin-top: 30px;
+                    margin-top: 24px;
                     padding-top: 10px;
-                    border-top: 1px solid #cccccc;
+                    border-top: 1px solid #d1d5db;
                     text-align: center;
                     font-size: 8pt;
-                    color: #777777;
+                    color: #6b7280;
                     font-style: italic;
                 }
             </style>
         </head>
         <body>
-            <div class='header'>
-                {$logoHtml}
-                <div class='company-name'>FINANCIAL STATEMENT REPORT</div>
-                <div class='project-name'>" . htmlspecialchars($project->name) . "</div>
-                <div class='report-date'>Generated: " . now()->format('F d, Y') . "</div>
+            <div class="header">
+                ' . $logoHtml . '
+                <div class="company-name">FINANCIAL STATEMENT REPORT</div>
+                <div class="project-name">' . e($project->name) . '</div>
+                <div class="report-date">Generated: ' . e(now()->format('F d, Y')) . '</div>
             </div>
 
-            <!-- Summary Section - Compact table format -->
-            <div class='summary-section'>
-                <div class='summary-title'>SUMMARY</div>
-                <table class='summary-table'>
-                    <tr>
-                        <td class='summary-label'>Initial Budget::</td>
-                        <td class='summary-value'>₱" . number_format($project->budget, 2) . "</td>
-                        <td class='summary-label'>Budget Additions:</td>
-                        <td class='summary-value'>₱" . number_format($d['budgetAdditions']->sum('amount'), 2) . "</td>
-                    </tr>
-                    <tr>
-                        <td class='summary-label'>Total Budget:</td>
-                        <td class='summary-value'>₱" . number_format($d['totalBudget'], 2) . "</td>
-                        <td class='summary-label'>Total Expenses:</td>
-                        <td class='summary-value'>₱" . number_format($d['expenses']->sum('amount'), 2) . "</td>
-                    </tr>
-                    <tr>
-                        <td class='summary-label'>Current Balance:</td>
-                        <td class='summary-value'>₱" . number_format($d['currentBudget'], 2) . "</td>
-                        <td class='summary-label'>Budget Utilization:</td>
-                        <td class='summary-value'>{$d['budgetUtilization']}%</td>
-                    </tr>
-                </table>
-            </div>
+            <div class="summary-title">SUMMARY</div>
+            <table class="summary-table">
+                <tr>
+                    <td class="summary-label">Initial Budget:</td>
+                    <td>' . e($this->formatMoney($project->budget)) . '</td>
+                    <td class="summary-label">Budget Additions:</td>
+                    <td>' . e($this->formatMoney($data['budgetAdditions']->sum('amount'))) . '</td>
+                </tr>
+                <tr>
+                    <td class="summary-label">Total Budget:</td>
+                    <td>' . e($this->formatMoney($data['totalBudget'])) . '</td>
+                    <td class="summary-label">Total Expenses:</td>
+                    <td>' . e($this->formatMoney($data['expenses']->sum('amount'))) . '</td>
+                </tr>
+                <tr>
+                    <td class="summary-label">Current Balance:</td>
+                    <td>' . e($this->formatMoney($data['currentBudget'])) . '</td>
+                    <td class="summary-label">Budget Utilization:</td>
+                    <td>' . e($data['budgetUtilization'] . '%') . '</td>
+                </tr>
+            </table>
 
-            <!-- Transaction Ledger -->
-            <div class='section-title'>TRANSACTION LEDGER</div>
+            <div class="section-title">TRANSACTION LEDGER</div>
             <table>
                 <thead>
                     <tr>
@@ -665,16 +600,15 @@ class ProjectReportController extends Controller
                         <th>DESCRIPTION</th>
                         <th>TYPE</th>
                         <th>CATEGORY</th>
-                        <th>CLIENT/REF</th>
+                        <th>CLIENT/REFERENCE</th>
                         <th>AMOUNT</th>
                         <th>BALANCE</th>
                     </tr>
                 </thead>
-                <tbody>{$rows}</tbody>
+                <tbody>' . $transactionRows . '</tbody>
             </table>
 
-            <!-- Expense Breakdown -->
-            <div class='section-title'>EXPENSE BREAKDOWN BY CATEGORY</div>
+            <div class="section-title">EXPENSE BREAKDOWN BY CATEGORY</div>
             <table>
                 <thead>
                     <tr>
@@ -684,20 +618,19 @@ class ProjectReportController extends Controller
                     </tr>
                 </thead>
                 <tbody>
-                    {$catRows}
-                    <tr style='font-weight:bold; background:#f0f0f0;'>
-                        <td><strong>TOTAL</strong></td>
-                        <td class='number'><strong>₱" . number_format($expenseTotal, 2) . "</strong></td>
-                        <td class='number'><strong>100%</strong></td>
+                    ' . $categoryRows . '
+                    <tr style="font-weight: bold; background: #f3f4f6;">
+                        <td>TOTAL</td>
+                        <td class="number">' . e($this->formatMoney($expenseTotal)) . '</td>
+                        <td class="number">100%</td>
                     </tr>
                 </tbody>
             </table>
 
-            <div class='footer'>
-                This is a computer-generated document. No signature required.<br>
-                For inquiries, contact the finance department.
+            <div class="footer">
+                This is a computer-generated document. No signature required.
             </div>
         </body>
-        </html>";
+        </html>';
     }
 }

@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\AccessRole;
 use App\Models\Project;
 use App\Models\InventoryItem;
 use App\Models\MaterialRequest;
@@ -56,12 +57,221 @@ test('admin cannot access employee-only monitoring submission', function () {
         ->assertForbidden();
 });
 
-test('employee dashboard redirects to monitoring submission', function () {
+test('employee with multiple modules can open the module dashboard', function () {
     $employee = User::factory()->create(['role' => 'employee']);
 
     $this->actingAs($employee)
         ->get(route('dashboard'))
-        ->assertRedirect(route('monitoring.submit'));
+        ->assertOk()
+        ->assertSee('Project Monitoring')
+        ->assertSee('Material Requests');
+});
+
+test('office engineer access can be limited to selected modules', function () {
+    $officeEngineer = User::factory()->create([
+        'role' => 'office_engineer',
+        'module_permissions' => [User::MODULE_DOCUMENTS],
+    ]);
+
+    $this->actingAs($officeEngineer)->get(route('documents.index'))->assertOk();
+    $this->actingAs($officeEngineer)->get(route('inventory.index'))->assertForbidden();
+    $this->actingAs($officeEngineer)->get(route('material-requests.index'))->assertForbidden();
+});
+
+test('employee landing page and access follow assigned employee modules', function () {
+    $employee = User::factory()->create([
+        'role' => 'employee',
+        'module_permissions' => [User::MODULE_MATERIAL_REQUESTS],
+    ]);
+
+    $this->actingAs($employee)
+        ->get(route('dashboard'))
+        ->assertRedirect(route('material-requests.create'));
+
+    $this->actingAs($employee)
+        ->get(route('material-requests.create'))
+        ->assertOk();
+
+    $this->actingAs($employee)
+        ->get(route('monitoring.submit'))
+        ->assertForbidden();
+});
+
+test('admin routes can be limited by explicit module assignments', function () {
+    $admin = User::factory()->create([
+        'role' => 'admin',
+        'module_permissions' => [User::MODULE_SETTINGS_PROJECTS],
+    ]);
+
+    $this->actingAs($admin)->get(route('settings.projects.index'))->assertOk();
+    $this->actingAs($admin)->get(route('projects.index'))->assertForbidden();
+    $this->actingAs($admin)->get(route('settings.users.index'))->assertForbidden();
+});
+
+test('user management creates an account with only the selected dashboard modules', function () {
+    $manager = User::factory()->create(['role' => 'admin']);
+    $officeRole = AccessRole::where('workflow_type', AccessRole::WORKFLOW_REVIEWER)->firstOrFail();
+
+    $this->actingAs($manager)
+        ->post(route('settings.users.store'), [
+            'name' => 'Document Officer',
+            'email' => 'document.officer@example.test',
+            'position' => 'Records Officer',
+            'access_role_id' => $officeRole->id,
+            'module_permissions' => [User::MODULE_DOCUMENTS],
+            'password' => 'StrongPass!123',
+            'password_confirmation' => 'StrongPass!123',
+        ])
+        ->assertRedirect(route('settings.users.index'));
+
+    $createdUser = User::where('email', 'document.officer@example.test')->firstOrFail();
+
+    expect($createdUser->resolvedModulePermissions())->toBe([User::MODULE_DOCUMENTS]);
+    $this->actingAs($createdUser)->get(route('documents.index'))->assertOk();
+    $this->actingAs($createdUser)->get(route('inventory.index'))->assertForbidden();
+});
+
+test('field staff can be assigned any dashboard module', function () {
+    $manager = User::factory()->create(['role' => 'admin']);
+    $siteRole = AccessRole::where('workflow_type', AccessRole::WORKFLOW_FIELD_STAFF)->firstOrFail();
+    $project = Project::create([
+        'name' => 'Flexible Access Project',
+        'budget' => 1000,
+        'status' => 'not_started',
+    ]);
+
+    $this->actingAs($manager)
+        ->post(route('settings.users.store'), [
+            'name' => 'Flexible Site Engineer',
+            'email' => 'flexible.site.engineer@example.test',
+            'position' => 'Site Staff',
+            'access_role_id' => $siteRole->id,
+            'module_permissions' => [
+                User::MODULE_LEDGER,
+                User::MODULE_DOCUMENTS,
+                User::MODULE_SETTINGS_USERS,
+            ],
+            'project_ids' => [$project->id],
+            'password' => 'StrongPass!123',
+            'password_confirmation' => 'StrongPass!123',
+        ])
+        ->assertRedirect(route('settings.users.index'));
+
+    $createdUser = User::where('email', 'flexible.site.engineer@example.test')->firstOrFail();
+    expect($createdUser->resolvedModulePermissions())->toBe([
+        User::MODULE_LEDGER,
+        User::MODULE_DOCUMENTS,
+        User::MODULE_SETTINGS_USERS,
+    ]);
+
+    $this->actingAs($createdUser)->get(route('projects.index'))->assertOk();
+    $this->actingAs($createdUser)->get(route('documents.index'))->assertOk();
+    $this->actingAs($createdUser)->get(route('settings.users.index'))->assertOk();
+    $this->actingAs($createdUser)
+        ->put(route('projects.update', $project), [
+            'name' => 'Updated by Site Engineer',
+            'budget' => 1000,
+            'status' => 'not_started',
+        ])
+        ->assertRedirect(route('projects.show', $project));
+
+    $this->assertDatabaseHas('projects', [
+        'id' => $project->id,
+        'name' => 'Updated by Site Engineer',
+    ]);
+});
+
+test('user edit buttons render a valid JSON payload', function () {
+    $manager = User::factory()->create(['role' => 'admin']);
+    $user = User::factory()->create([
+        'name' => "O'Brien Project Officer",
+        'role' => 'office_engineer',
+        'position' => 'Project Officer',
+        'module_permissions' => [User::MODULE_DOCUMENTS],
+    ]);
+
+    $response = $this->actingAs($manager)->get(route('settings.users.index'))->assertOk();
+    $html = $response->getContent();
+
+    expect(preg_match_all('/data-edit-user="([^"]+)"/', $html, $matches))->toBeGreaterThanOrEqual(2);
+
+    $payloads = collect($matches[1])->map(
+        fn (string $payload) => json_decode(
+            html_entity_decode($payload, ENT_QUOTES),
+            true,
+            flags: JSON_THROW_ON_ERROR
+        )
+    );
+    $payload = $payloads->firstWhere('id', $user->id);
+
+    expect($payload)
+        ->toBeArray()
+        ->toHaveKeys(['id', 'name', 'position', 'email', 'accessRoleId', 'modulePermissions'])
+        ->and($payload['name'])->toBe("O'Brien Project Officer");
+});
+
+test('administrator can create a custom planning team role with module defaults', function () {
+    $manager = User::factory()->create(['role' => 'admin']);
+
+    $this->actingAs($manager)
+        ->post(route('settings.roles.store'), [
+            'name' => 'Planning Team',
+            'description' => 'Reviews plans, documents, and project progress.',
+            'workflow_type' => AccessRole::WORKFLOW_REVIEWER,
+            'module_permissions' => [
+                User::MODULE_LEDGER,
+                User::MODULE_DOCUMENTS,
+                User::MODULE_MONITORING_REVIEW,
+            ],
+        ])
+        ->assertRedirect(route('settings.roles.index'));
+
+    $role = AccessRole::where('name', 'Planning Team')->firstOrFail();
+
+    expect($role->workflow_type)->toBe(AccessRole::WORKFLOW_REVIEWER)
+        ->and($role->module_permissions)->toBe([
+            User::MODULE_LEDGER,
+            User::MODULE_DOCUMENTS,
+            User::MODULE_MONITORING_REVIEW,
+        ]);
+});
+
+test('changing a custom role workflow remaps user workflow modules', function () {
+    $manager = User::factory()->create(['role' => 'admin']);
+    $role = AccessRole::create([
+        'name' => 'Project Review Team',
+        'slug' => 'project-review-team',
+        'workflow_type' => AccessRole::WORKFLOW_REVIEWER,
+        'module_permissions' => [
+            User::MODULE_MONITORING_REVIEW,
+            User::MODULE_MATERIAL_APPROVALS,
+        ],
+    ]);
+    $member = User::factory()->create([
+        'role' => 'office_engineer',
+        'access_role_id' => $role->id,
+        'module_permissions' => [
+            User::MODULE_MONITORING_REVIEW,
+            User::MODULE_MATERIAL_APPROVALS,
+        ],
+    ]);
+
+    $this->actingAs($manager)
+        ->put(route('settings.roles.update', $role), [
+            'name' => 'Project Field Team',
+            'workflow_type' => AccessRole::WORKFLOW_FIELD_STAFF,
+            'module_permissions' => [
+                User::MODULE_MONITORING_SUBMIT,
+                User::MODULE_MATERIAL_REQUESTS,
+            ],
+        ])
+        ->assertRedirect(route('settings.roles.index'));
+
+    expect($member->fresh()->role)->toBe('employee')
+        ->and($member->fresh()->module_permissions)->toBe([
+            User::MODULE_MONITORING_SUBMIT,
+            User::MODULE_MATERIAL_REQUESTS,
+        ]);
 });
 
 test('monitoring photos are limited to admins and the report owner', function () {

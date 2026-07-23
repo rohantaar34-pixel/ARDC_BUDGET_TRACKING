@@ -33,9 +33,9 @@
         font-weight: 700;
     }
     .settings-tab.active {
-        background: #4f46e5;
+        background: #1d4ed8;
         color: #fff;
-        border-color: #4f46e5;
+        border-color: #1d4ed8;
     }
     .page-title {
         font-size: 24px;
@@ -43,7 +43,7 @@
         color: #111827;
     }
     .btn-primary {
-        background: #4f46e5;
+        background: #0f766e;
         color: white;
         padding: 10px 20px;
         border-radius: 8px;
@@ -54,7 +54,7 @@
         border: none;
     }
     .btn-primary:hover {
-        background: #4338ca;
+        background: #0b5f58;
     }
     .table-container {
         background: white;
@@ -146,6 +146,14 @@
         gap: 12px;
         margin-top: 24px;
     }
+    .modal-text {
+        color: #4b5563;
+        font-size: 14px;
+        line-height: 1.6;
+    }
+    .modal-text strong {
+        color: #111827;
+    }
     .btn-cancel {
         background: white;
         border: 1px solid #d1d5db;
@@ -159,7 +167,7 @@
         align-items: center;
         gap: 10px;
         padding: 10px 20px;
-        background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+        background: linear-gradient(135deg, #2563eb 0%, #0f9f8f 100%);
         color: white;
         border: none;
         border-radius: 12px;
@@ -167,13 +175,13 @@
         font-weight: 700;
         text-decoration: none;
         transition: all 0.3s ease;
-        box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+        box-shadow: 0 2px 8px rgba(15, 159, 143, 0.3);
         margin-bottom: 24px;
     }
     .btn-dashboard-enhanced:hover {
         transform: translateY(-2px);
-        box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
-        background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
+        box-shadow: 0 4px 15px rgba(29, 78, 216, 0.3);
+        background: linear-gradient(135deg, #1d4ed8 0%, #0f766e 100%);
     }
 </style>
 
@@ -191,7 +199,10 @@
 
     <div class="settings-tabs">
         <a href="{{ route('settings.projects.index') }}" class="settings-tab active">Projects</a>
-        <a href="{{ route('settings.users.index') }}" class="settings-tab">Users</a>
+        @if(Auth::user()->canManageUsers())
+            <a href="{{ route('settings.users.index') }}" class="settings-tab">Users</a>
+            <a href="{{ route('settings.roles.index') }}" class="settings-tab">Roles</a>
+        @endif
     </div>
 
     <div class="header-flex">
@@ -222,11 +233,16 @@
                             </span>
                         </td>
                         <td>
-                            <form action="{{ route('settings.projects.destroy', $project) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this project? This will also delete all associated documents and files in the Document Tracker!');">
-                                @csrf
-                                @method('DELETE')
-                                <button type="submit" class="action-btn btn-delete">Delete</button>
-                            </form>
+                            <button
+                                type="button"
+                                class="action-btn btn-delete"
+                                onclick="openDeleteModal(
+                                    @js(route('settings.projects.destroy', $project)),
+                                    @js('Delete project "' . $project->name . '"? This will also delete all associated documents and files in the Document Tracker.')
+                                )"
+                            >
+                                Delete
+                            </button>
                         </td>
                     </tr>
                 @empty
@@ -265,6 +281,21 @@
     </div>
 </div>
 
+<div id="deleteModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">Delete Project</div>
+        <div class="modal-text" id="deleteMessage"></div>
+        <form id="deleteForm" method="POST">
+            @csrf
+            @method('DELETE')
+            <div class="form-actions">
+                <button type="button" class="btn-cancel" onclick="closeDeleteModal()">Cancel</button>
+                <button type="submit" class="btn-primary" style="background: #dc2626;">Delete Project</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
     function openModal() {
         document.getElementById('addModal').style.display = 'flex';
@@ -272,9 +303,20 @@
     function closeModal() {
         document.getElementById('addModal').style.display = 'none';
     }
+    function openDeleteModal(action, message) {
+        document.getElementById('deleteForm').action = action;
+        document.getElementById('deleteMessage').textContent = message;
+        document.getElementById('deleteModal').style.display = 'flex';
+    }
+    function closeDeleteModal() {
+        document.getElementById('deleteModal').style.display = 'none';
+    }
     window.onclick = function(event) {
         if (event.target == document.getElementById('addModal')) {
             closeModal();
+        }
+        if (event.target == document.getElementById('deleteModal')) {
+            closeDeleteModal();
         }
     }
 </script>

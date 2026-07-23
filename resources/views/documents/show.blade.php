@@ -95,7 +95,7 @@
         width: 40px;
         height: 40px;
         background: #e0e7ff;
-        color: #4f46e5;
+        color: #0f766e;
         border-radius: 8px;
         display: flex;
         align-items: center;
@@ -141,10 +141,10 @@
     .btn-back:hover { background: #e5e7eb; }
     
     .btn-edit {
-        background: #4f46e5;
+        background: #1d4ed8;
         color: white;
     }
-    .btn-edit:hover { background: #4338ca; }
+    .btn-edit:hover { background: #153e75; }
     
     .btn-download {
         background: #10b981;
@@ -239,7 +239,7 @@
                 <div class="file-name">Scanned Image</div>
                 <div class="file-meta">Image scan attachment</div>
             </div>
-            <a href="{{ Storage::url($document->scanned_image_path) }}" target="_blank" class="btn btn-back" style="padding: 6px 12px; font-size: 12px;">View Scan</a>
+            <a href="{{ route('documents.scan', $document) }}" target="_blank" rel="noopener" class="btn btn-back" style="padding: 6px 12px; font-size: 12px;">View Scan</a>
         </div>
         @endif
     </div>

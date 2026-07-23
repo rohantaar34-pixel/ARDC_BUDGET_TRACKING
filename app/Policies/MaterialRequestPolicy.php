@@ -9,26 +9,27 @@ class MaterialRequestPolicy
 {
     public function viewAny(User $user): bool
     {
-        return $user->canManageOperations();
+        return $user->hasModuleAccess(User::MODULE_MATERIAL_APPROVALS);
     }
 
     public function create(User $user): bool
     {
-        return $user->isEmployee();
+        return $user->hasModuleAccess(User::MODULE_MATERIAL_REQUESTS);
     }
 
     public function view(User $user, MaterialRequest $materialRequest): bool
     {
-        return $user->canManageOperations() || $materialRequest->user_id === $user->id;
+        return $user->hasModuleAccess(User::MODULE_MATERIAL_APPROVALS)
+            || ($materialRequest->user_id === $user->id && $user->hasModuleAccess(User::MODULE_MATERIAL_REQUESTS));
     }
 
     public function approve(User $user, MaterialRequest $materialRequest): bool
     {
-        return $user->canManageOperations();
+        return $user->hasModuleAccess(User::MODULE_MATERIAL_APPROVALS);
     }
 
     public function reject(User $user, MaterialRequest $materialRequest): bool
     {
-        return $user->canManageOperations();
+        return $user->hasModuleAccess(User::MODULE_MATERIAL_APPROVALS);
     }
 }

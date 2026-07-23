@@ -7,7 +7,7 @@
     .mr-title { font-size:26px; font-weight:800; margin:0; }
     .mr-sub, .muted { color:#6b7280; font-size:14px; }
     .btn { display:inline-flex; align-items:center; justify-content:center; min-height:44px; border:0; border-radius:8px; padding:10px 14px; font-weight:800; font-size:13px; cursor:pointer; text-decoration:none; }
-    .btn-soft { background:#eef2ff; color:#4f46e5; }
+    .btn-soft { background:#ecfdf8; color:#0f766e; }
     .btn-primary { background:#0891b2; color:#fff; width:100%; }
     .live-pill { display:inline-flex; align-items:center; gap:8px; min-height:44px; padding:10px 12px; border:1px solid #bae6fd; background:#ecfeff; color:#0e7490; border-radius:999px; font-size:12px; font-weight:900; }
     .live-dot { width:8px; height:8px; border-radius:50%; background:#22c55e; box-shadow:0 0 0 4px rgba(34,197,94,.14); }

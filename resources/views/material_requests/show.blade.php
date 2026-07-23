@@ -6,7 +6,7 @@
     .head { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap; margin-bottom:18px; }
     .title { font-size:26px; font-weight:800; margin:0; }
     .muted { color:#6b7280; font-size:14px; }
-    .btn { display:inline-flex; align-items:center; justify-content:center; min-height:42px; border:0; border-radius:8px; padding:9px 13px; font-weight:800; font-size:12px; cursor:pointer; text-decoration:none; background:#eef2ff; color:#4f46e5; }
+    .btn { display:inline-flex; align-items:center; justify-content:center; min-height:42px; border:0; border-radius:8px; padding:9px 13px; font-weight:800; font-size:12px; cursor:pointer; text-decoration:none; background:#eff6ff; color:#1d4ed8; }
     .grid { display:grid; grid-template-columns:minmax(280px,.8fr) minmax(360px,1.2fr); gap:18px; align-items:start; }
     .panel { background:#fff; border:1px solid #e5e7eb; border-radius:8px; overflow:hidden; }
     .panel-title { padding:16px; border-bottom:1px solid #e5e7eb; font-size:12px; font-weight:900; text-transform:uppercase; letter-spacing:.05em; color:#6b7280; }

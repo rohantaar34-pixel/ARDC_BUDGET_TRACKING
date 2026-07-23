@@ -7,9 +7,9 @@
     .page-title { font-size:26px; font-weight:800; margin:0; }
     .page-sub, .muted { color:#6b7280; font-size:14px; }
     .btn { display:inline-flex; align-items:center; justify-content:center; border:0; border-radius:8px; padding:11px 14px; font-weight:800; font-size:13px; cursor:pointer; text-decoration:none; }
-    .btn-dashboard { background:#eef2ff; color:#4f46e5; }
+    .btn-dashboard { background:#eff6ff; color:#1d4ed8; }
     .btn-material { background:#ecfeff; color:#0e7490; }
-    .btn-submit { background:#4f46e5; color:#fff; width:100%; }
+    .btn-submit { background:#0f766e; color:#fff; width:100%; }
     .grid { display:grid; grid-template-columns:minmax(300px,.8fr) minmax(360px,1.2fr); gap:18px; align-items:start; }
     .panel, .history-card { background:#fff; border:1px solid #e5e7eb; border-radius:8px; overflow:hidden; }
     .no-history-card { background:#fff; border:1px dashed #d1d5db; border-radius:8px; padding:16px; }

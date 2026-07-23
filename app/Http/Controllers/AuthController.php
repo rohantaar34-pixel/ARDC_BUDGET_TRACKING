@@ -14,11 +14,7 @@ class AuthController extends Controller
     public function showLogin()
     {
         if (Auth::check()) {
-            if (Auth::user()->isEmployee()) {
-                return redirect()->route('monitoring.submit');
-            }
-
-            return redirect()->route('dashboard');
+            return redirect()->route(Auth::user()->landingRouteName());
         }
         return view('auth.login');
     }
@@ -40,11 +36,7 @@ class AuthController extends Controller
             LoginAttempt::where('ip_address', $ip)->delete();
             $request->session()->regenerate();
 
-            if (Auth::user()->isEmployee()) {
-                return redirect()->route('monitoring.submit');
-            }
-
-            return redirect()->intended(route('dashboard'));
+            return redirect()->intended(route(Auth::user()->landingRouteName()));
         }
 
         $record = LoginAttempt::firstOrCreate(['ip_address' => $ip], ['attempts' => 0]);

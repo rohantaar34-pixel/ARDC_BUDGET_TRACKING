@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Settings;
 use App\Http\Controllers\Controller;
 use App\Models\Project;
 use App\Models\Document;
+use App\Services\NotificationBroadcaster;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -18,7 +19,7 @@ class ProjectController extends Controller
         return view('settings.projects.index', compact('projects'));
     }
 
-    public function store(Request $request)
+    public function store(Request $request, NotificationBroadcaster $notifications)
     {
         try {
             $validated = $request->validate([
@@ -61,6 +62,8 @@ class ProjectController extends Controller
                 'status' => 'active',
                 'date_added' => now()
             ]);
+
+            $notifications->projectCreated($project, Auth::user());
 
             return redirect()->route('settings.projects.index')
                 ->with('success', 'Project created successfully');

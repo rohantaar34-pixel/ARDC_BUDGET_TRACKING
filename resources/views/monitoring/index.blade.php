@@ -7,7 +7,7 @@
     .page-title { font-size:26px; font-weight:800; margin:0; }
     .page-sub { color:#6b7280; margin-top:4px; font-size:14px; }
     .btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; border:0; border-radius:8px; padding:10px 14px; font-weight:800; font-size:13px; cursor:pointer; text-decoration:none; }
-    .btn-dashboard { background:#eef2ff; color:#4f46e5; }
+    .btn-dashboard { background:#eff6ff; color:#1d4ed8; }
     .btn-approve { background:#dcfce7; color:#166534; }
     .btn-reject { background:#fee2e2; color:#991b1b; }
     .stats-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; margin-bottom:18px; }

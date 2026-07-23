@@ -21,7 +21,7 @@
         }
 
         .login-card-head {
-            background: #BE0000;
+            background: linear-gradient(135deg, #1d4ed8 0%, #0f9f8f 100%);
             padding: 32px 36px 28px;
             text-align: center;
         }
@@ -97,13 +97,13 @@
         }
 
         .f-group input:focus {
-            border-color: #BE0000;
+            border-color: #0f9f8f;
             background: #fff;
             box-shadow: 0 0 0 3px rgba(190, 0, 0, .1);
         }
 
         .f-group input.is-err {
-            border-color: #BE0000;
+            border-color: #0f9f8f;
             background: #fff8f8;
         }
 
@@ -115,7 +115,7 @@
         }
 
         .remember-row input[type="checkbox"] {
-            accent-color: #BE0000;
+            accent-color: #0f9f8f;
             width: 15px;
             height: 15px;
             cursor: pointer;
@@ -133,7 +133,7 @@
         .btn-signin {
             width: 100%;
             padding: 13px;
-            background: #BE0000;
+            background: linear-gradient(135deg, #1d4ed8 0%, #0f9f8f 100%);
             color: #fff;
             border: none;
             border-radius: 8px;

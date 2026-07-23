@@ -3,9 +3,9 @@
 @section('content')
 <style>
     :root {
-        --indigo: #6366f1;
-        --indigo-dark: #4f46e5;
-        --indigo-light: #eef2ff;
+        --indigo: #0f9f8f;
+        --indigo-dark: #0f766e;
+        --indigo-light: #ecfdf8;
         --green: #059669;
         --green-light: #ecfdf5;
         --red: #dc2626;
@@ -56,7 +56,7 @@
         font-size: 14px;
         transition: background 0.2s;
     }
-    .btn-add:hover { background: #4338ca; }
+    .btn-add:hover { background: #0b5f58; }
 
     .btn-back-dash {
         display: inline-flex;
@@ -148,7 +148,7 @@
         overflow: hidden;
         transition: box-shadow 0.2s;
     }
-    .project-folder:hover { box-shadow: 0 4px 12px rgba(99,102,241,0.1); }
+    .project-folder:hover { box-shadow: 0 4px 12px rgba(15,159,143,0.1); }
 
     .folder-header {
         padding: 18px 20px 14px;
@@ -219,7 +219,7 @@
         font-size: 11px; font-weight: 600;
         text-decoration: none; transition: all 0.15s;
     }
-    .doc-act-btn.view { background: #e0e7ff; color: #4338ca; }
+    .doc-act-btn.view { background: #dbeafe; color: #1d4ed8; }
     .doc-act-btn.view:hover { background: #c7d2fe; }
     .doc-act-btn.edit { background: var(--green-light); color: var(--green); }
     .doc-act-btn.edit:hover { background: #a7f3d0; }
@@ -243,6 +243,13 @@
         transition: background 0.15s;
     }
     .folder-see-all:hover { background: var(--indigo-light); }
+    .folder-open {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        color: var(--indigo-dark);
+    }
 
     /* No project folder */
     .no-project-folder .folder-icon { background: #f3f4f6; color: var(--ink-3); }
@@ -266,7 +273,7 @@
     td { padding: 14px 16px; border-top: 1px solid #f3f4f6; font-size: 14px; }
 
     /* type dot colors */
-    .type-contract { background: #6366f1; }
+    .type-contract { background: #2563eb; }
     .type-invoice { background: #f59e0b; }
     .type-report { background: #10b981; }
     .type-other { background: #9ca3af; }
@@ -457,11 +464,14 @@
                         @endforelse
                     </div>
 
-                    @if($totalProjDocs > 4)
-                        <a href="{{ route('documents.index') }}?project_id={{ $proj->id }}&view=list" class="folder-see-all">
-                            See all {{ $totalProjDocs }} documents →
-                        </a>
-                    @endif
+                    <a href="{{ route('documents.project', $proj) }}" class="folder-see-all folder-open">
+                        <span>Open folder and view all details</span>
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+                            <path d="M5 12h14"></path>
+                            <path d="m13 6 6 6-6 6"></path>
+                        </svg>
+                    </a>
+
                 </div>
             @endforeach
 

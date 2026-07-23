@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Document;
 use App\Models\Project;
+use App\Services\DocumentExpiryNotifier;
+use App\Services\NotificationBroadcaster;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Auth;
@@ -66,8 +68,22 @@ class DocumentController extends Controller
         
         return view('documents.create', compact('projects', 'documentNumber'));
     }
+
+    public function projectFiles(Request $request, Project $project)
+    {
+        $documents = $project->documents()
+            ->with('uploader')
+            ->latest('date_added')
+            ->paginate(20);
+
+        return view('documents.project', compact('project', 'documents'));
+    }
     
-    public function store(Request $request)
+    public function store(
+        Request $request,
+        NotificationBroadcaster $notifications,
+        DocumentExpiryNotifier $expiryNotifier,
+    )
     {
         $request->validate([
             'title' => 'required|string|max:255',
@@ -115,6 +131,9 @@ class DocumentController extends Controller
         }
         
         $document->save();
+
+        $notifications->documentAdded($document, Auth::user());
+        $expiryNotifier->sendForDocument($document);
         
         return redirect()->route('documents.index')
             ->with('success', 'Document added successfully!');
@@ -134,7 +153,11 @@ class DocumentController extends Controller
         return view('documents.edit', compact('document', 'projects'));
     }
     
-    public function update(Request $request, Document $document)
+    public function update(
+        Request $request,
+        Document $document,
+        DocumentExpiryNotifier $expiryNotifier,
+    )
     {
         $request->validate([
             'title' => 'required|string|max:255',
@@ -149,6 +172,7 @@ class DocumentController extends Controller
             'scanned_image' => 'nullable|image|max:5120',
         ]);
         
+        $previousExpiryDate = $document->expiry_date?->toDateString();
         $document->title = $request->title;
         $document->description = $request->description;
         $document->document_type = $request->document_type;
@@ -189,6 +213,10 @@ class DocumentController extends Controller
         }
         
         $document->save();
+
+        if ($previousExpiryDate !== $document->expiry_date?->toDateString()) {
+            $expiryNotifier->sendForDocument($document);
+        }
         
         return redirect()->route('documents.show', $document)
             ->with('success', 'Document updated successfully!');
@@ -224,6 +252,19 @@ class DocumentController extends Controller
         $document->incrementDownloadCount();
         
         return Storage::disk('public')->download($document->file_path, $document->original_filename);
+    }
+
+    public function viewScan(Document $document)
+    {
+        if (!$document->scanned_image_path || !Storage::disk('public')->exists($document->scanned_image_path)) {
+            abort(404, 'Scanned image not found.');
+        }
+
+        return Storage::disk('public')->response(
+            $document->scanned_image_path,
+            basename($document->scanned_image_path),
+            ['Content-Disposition' => 'inline'],
+        );
     }
     
     public function search(Request $request)

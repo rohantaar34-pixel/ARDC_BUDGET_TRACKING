@@ -113,10 +113,6 @@ class ProjectController extends Controller
     public function update(Request $request, Project $project)
     {
         try {
-            if (!Auth::user()->isAdmin()) {
-                abort(403);
-            }
-
             $validated = $request->validate([
                 'name'        => 'required|string|max:255',
                 'description' => 'nullable|string|max:1000',

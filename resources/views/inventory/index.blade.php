@@ -286,7 +286,14 @@
                         </a>
                         @endif
                         <button class="btn-sm btn-edit" onclick="openEdit({{ $item->id }}, '{{ addslashes($item->name) }}', '{{ addslashes($item->category) }}', '{{ addslashes($item->unit) }}', {{ $item->unit_cost }}, {{ $item->quantity }}, '{{ addslashes($item->description) }}')">Edit</button>
-                        <form method="POST" action="{{ route('inventory.destroy', $item) }}" style="display:inline;" onsubmit="return confirm('Delete {{ addslashes($item->name) }}?')">
+                        <form
+                            method="POST"
+                            action="{{ route('inventory.destroy', $item) }}"
+                            style="display:inline;"
+                            data-confirm-title="Delete inventory item?"
+                            data-confirm-message="Delete {{ $item->name }}? This cannot be undone."
+                            data-confirm-action="Delete Item"
+                        >
                             @csrf @method('DELETE')
                             <button type="submit" class="btn-sm btn-del">Del</button>
                         </form>

@@ -9,7 +9,7 @@
             align-items: center;
             gap: 10px;
             padding: 10px 20px;
-            background: linear-gradient(135deg, var(--indigo) 0%, #4f46e5 100%);
+            background: linear-gradient(135deg, #2563eb 0%, #0f9f8f 100%);
             color: white;
             border: none;
             border-radius: 12px;
@@ -17,7 +17,7 @@
             font-weight: 700;
             text-decoration: none;
             transition: all 0.3s ease;
-            box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+            box-shadow: 0 2px 8px rgba(15, 159, 143, 0.3);
             position: relative;
             overflow: hidden;
         }
@@ -42,8 +42,8 @@
 
         .btn-dashboard-enhanced:hover {
             transform: translateY(-2px);
-            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
-            background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
+            box-shadow: 0 4px 15px rgba(29, 78, 216, 0.3);
+            background: linear-gradient(135deg, #1d4ed8 0%, #0f766e 100%);
         }
 
         .btn-dashboard-enhanced:active {
@@ -64,7 +64,7 @@
             display: inline-flex;
             align-items: center;
             gap: 6px;
-            background: rgba(99, 102, 241, 0.1);
+            background: rgba(15, 159, 143, 0.1);
             padding: 6px 12px;
             border-radius: 20px;
             font-size: 12px;
@@ -83,15 +83,15 @@
 
         @keyframes pulse {
             0% {
-                box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4);
+                box-shadow: 0 0 0 0 rgba(15, 159, 143, 0.4);
             }
 
             70% {
-                box-shadow: 0 0 0 10px rgba(99, 102, 241, 0);
+                box-shadow: 0 0 0 10px rgba(15, 159, 143, 0);
             }
 
             100% {
-                box-shadow: 0 0 0 0 rgba(99, 102, 241, 0);
+                box-shadow: 0 0 0 0 rgba(15, 159, 143, 0);
             }
         }
 
@@ -141,9 +141,9 @@
         }
 
         :root {
-            --indigo: #6366f1;
-            --indigo-dark: #4f46e5;
-            --indigo-light: #eef2ff;
+            --indigo: #2563eb;
+            --indigo-dark: #1d4ed8;
+            --indigo-light: #eff6ff;
             --green: #059669;
             --red: #dc2626;
             --orange: #ea580c;

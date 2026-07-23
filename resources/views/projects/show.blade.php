@@ -4,9 +4,9 @@
 @section('content')
     <style>
         :root {
-            --indigo: #6366f1;
-            --indigo-dark: #4f46e5;
-            --indigo-light: #eef2ff;
+            --indigo: #2563eb;
+            --indigo-dark: #1d4ed8;
+            --indigo-light: #eff6ff;
             --green: #059669;
             --green-light: #ecfdf5;
             --red: #dc2626;
@@ -910,6 +910,21 @@
             flex-wrap: wrap;
         }
 
+        .report-help {
+            margin-top: 10px;
+            padding: 12px 14px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            background: #f9fafb;
+            color: var(--ink-3);
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        .report-help p + p {
+            margin-top: 6px;
+        }
+
         .btn-report {
             display: inline-flex;
             align-items: center;
@@ -1032,16 +1047,14 @@
                     <p class="sp-desc">{{ $project->description }}</p>
                 @endif
             </div>
-            @if(Auth::user()->isAdmin())
-                <button class="btn-edit" onclick="document.getElementById('editModal').classList.add('open')">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                        stroke-width="2.2" stroke-linecap="round">
-                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                    </svg>
-                    Edit Project
-                </button>
-            @endif
+            <button class="btn-edit" onclick="document.getElementById('editModal').classList.add('open')">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2.2" stroke-linecap="round">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                </svg>
+                Edit Project
+            </button>
         </div>
 
         {{-- Stats --}}
@@ -1265,6 +1278,12 @@
                     </div>
                 </div>
 
+                    <div class="report-help">
+                        <p><strong>Excel:</strong> use when you need to sort rows, filter data, or continue calculations.</p>
+                        <p><strong>PDF:</strong> use when you need a fixed layout for printing or formal sharing.</p>
+                        <p><strong>Word:</strong> use when you need to annotate the report or combine it with other documents.</p>
+                    </div>
+
                 {{-- Transactions Display --}}
                 <div class="ledger-categories">
                     @if ($transactions->isEmpty())
@@ -1326,7 +1345,10 @@
                                                 </div>
                                                 <form
                                                     :action="`/projects/{{ $project->id }}/transactions/${transaction.id}`"
-                                                    method="POST" onsubmit="return confirm('Remove this transaction?')">
+                                                    method="POST"
+                                                    data-confirm-title="Remove transaction?"
+                                                    data-confirm-message="Remove this transaction from the ledger? This cannot be undone."
+                                                    data-confirm-action="Remove Transaction">
                                                     @csrf @method('DELETE')
                                                     <button type="submit" class="btn-del">
                                                         <svg width="14" height="14" viewBox="0 0 24 24"
@@ -1396,7 +1418,10 @@
                                                 </div>
                                                 <form
                                                     :action="`/projects/{{ $project->id }}/transactions/${transaction.id}`"
-                                                    method="POST" onsubmit="return confirm('Remove this transaction?')">
+                                                    method="POST"
+                                                    data-confirm-title="Remove transaction?"
+                                                    data-confirm-message="Remove this transaction from the ledger? This cannot be undone."
+                                                    data-confirm-action="Remove Transaction">
                                                     @csrf @method('DELETE')
                                                     <button type="submit" class="btn-del">
                                                         <svg width="14" height="14" viewBox="0 0 24 24"
@@ -1510,7 +1535,6 @@
     </div>
 
     {{-- Edit Project Modal --}}
-    @if(Auth::user()->isAdmin())
     <div id="editModal" class="modal-bg" onclick="if(event.target===this)this.classList.remove('open')">
         <div class="modal-box">
             <div class="modal-handle"></div>
@@ -1539,7 +1563,6 @@
             </form>
         </div>
     </div>
-    @endif
 
     {{-- Image View Modal --}}
     <div id="imageModal" class="modal-bg" onclick="if(event.target===this)closeImageModal()">

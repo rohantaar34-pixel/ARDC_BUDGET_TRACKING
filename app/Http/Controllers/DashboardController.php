@@ -3,6 +3,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Project;
 use App\Models\Document;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -12,25 +13,32 @@ class DashboardController extends Controller
     {
         $user = Auth::user();
 
-        if ($user->isEmployee()) {
-            return redirect()->route('monitoring.submit');
+        if ($user->isEmployee() && $user->landingRouteName() !== 'dashboard') {
+            return redirect()->route($user->landingRouteName());
         }
 
         $projectQuery = Project::query();
+        $canSeeAllProjects = $user->hasAnyModuleAccess([
+            User::MODULE_LEDGER,
+            User::MODULE_DOCUMENTS,
+            User::MODULE_MONITORING_REVIEW,
+            User::MODULE_INVENTORY,
+            User::MODULE_MATERIAL_APPROVALS,
+            User::MODULE_SETTINGS_PROJECTS,
+            User::MODULE_SETTINGS_USERS,
+        ]);
 
-        if ($user->isEmployee()) {
+        if (!$canSeeAllProjects) {
             $projectQuery->whereIn('id', $user->assignedProjects()->pluck('projects.id'));
         }
 
-        // Get statistics for the dashboard
         $stats = [
-            'total_projects' => $user->canManageOperations() ? Project::count() : (clone $projectQuery)->count(),
-            'total_documents' => $user->canManageOperations() ? Document::count() : 0,
-            'total_budget' => (clone $projectQuery)->sum('budget'),
+            'total_projects' => (clone $projectQuery)->count(),
+            'total_documents' => $user->hasModuleAccess(User::MODULE_DOCUMENTS) ? Document::count() : 0,
+            'total_budget' => $user->hasModuleAccess(User::MODULE_LEDGER) ? (clone $projectQuery)->sum('budget') : 0,
         ];
-        
-        // Get all projects for the dashboard to display their current budgets
-        $projects = $user->isAdmin()
+
+        $projects = $user->hasModuleAccess(User::MODULE_LEDGER)
             ? $projectQuery->orderBy('created_at', 'desc')->get()
             : collect();
 
