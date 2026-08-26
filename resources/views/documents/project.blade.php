@@ -678,6 +678,12 @@
                     <a href="{{ route('documents.create', ['project_id' => $project->id]) }}" class="btn-action files-add">Add document</a>
                 </div>
             @endforelse
+
+            <div class="files-empty" id="filter-empty-state" style="display: none;">
+                <h2>No documents found</h2>
+                <p>There are no documents in this folder or matching your search query.</p>
+                <a href="{{ route('documents.create', ['project_id' => $project->id]) }}" class="btn-action files-add">Add document</a>
+            </div>
         </div>
     </section>
 </div>
@@ -793,7 +799,7 @@ let searchQuery = '';
 // Initial filter on page load -> check if folder_id query parameter exists
 document.addEventListener('DOMContentLoaded', () => {
     const urlParams = new URLSearchParams(window.location.search);
-    const initialFolder = urlParams.get('folder_id') || '{{ request("folder_id") }}' || 'none';
+    const initialFolder = urlParams.get('folder_id') || '{{ request("folder_id") }}' || 'all';
     filterFolder(initialFolder);
 });
 
@@ -959,6 +965,11 @@ function applyCurrentFilters() {
         row.style.display = show ? '' : 'none';
         if (show) visibleCount++;
     });
+
+    const filterEmpty = document.getElementById('filter-empty-state');
+    if (filterEmpty) {
+        filterEmpty.style.display = visibleCount === 0 ? 'block' : 'none';
+    }
 }
 
 function showToast(msg, type) {

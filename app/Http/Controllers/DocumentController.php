@@ -72,17 +72,7 @@ class DocumentController extends Controller
             ->orderBy('name')
             ->get();
 
-        $query = $project->documents()->with(['uploader', 'folder'])->latest('date_added');
-
-        if ($request->has('folder_id') && $request->folder_id !== '') {
-            if ($request->folder_id === 'none') {
-                $query->whereNull('folder_id');
-            } else {
-                $query->where('folder_id', $request->folder_id);
-            }
-        }
-
-        $documents = $query->get();
+        $documents = $project->documents()->with(['uploader', 'folder'])->latest('date_added')->get();
 
         return view('documents.project', compact('project', 'documents', 'folders'));
     }
