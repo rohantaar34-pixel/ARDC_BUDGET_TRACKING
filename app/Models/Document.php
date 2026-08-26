@@ -5,6 +5,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Models\DocumentFolder;
 // Remove this line: use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Document extends Model
@@ -31,6 +32,7 @@ class Document extends Model
         'status',
         'version',
         'project_id',
+        'folder_id',
         'uploaded_by',
         'view_count',
         'download_count',
@@ -53,6 +55,11 @@ class Document extends Model
     public function project()
     {
         return $this->belongsTo(Project::class);
+    }
+
+    public function folder()
+    {
+        return $this->belongsTo(DocumentFolder::class, 'folder_id');
     }
     
     public function uploader()

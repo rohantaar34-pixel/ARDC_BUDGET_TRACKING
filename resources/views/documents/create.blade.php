@@ -55,14 +55,14 @@
 
     <div class="form-container">
         <div style="display:flex; align-items:center; gap:12px; margin-bottom:24px;">
-            <a href="{{ route('documents.index') }}" style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#f3f4f6;color:#374151;border-radius:8px;text-decoration:none;font-weight:600;font-size:13px;">
+            <a href="{{ request('project_id') ? route('documents.project', request('project_id')) : route('documents.index') }}" style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#f3f4f6;color:#374151;border-radius:8px;text-decoration:none;font-weight:600;font-size:13px;">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
                 Back
             </a>
             <h1 style="font-size: 22px; font-weight: 700; margin:0;">Add New Document</h1>
         </div>
 
-        <form method="POST" action="{{ route('documents.store') }}" enctype="multipart/form-data">
+        <form method="POST" action="{{ route('documents.store') }}" enctype="multipart/form-data" onsubmit="const b=this.querySelector('.btn-submit'); if(b){b.disabled=true; b.innerText='Saving Document...';}">
             @csrf
 
             <div class="form-group">
@@ -73,21 +73,21 @@
 
             <div class="form-group">
                 <label>Title *</label>
-                <input type="text" name="title" required>
+                <input type="text" name="title" value="{{ old('title') }}" required>
             </div>
 
             <div class="form-group">
                 <label>Description</label>
-                <textarea name="description" rows="3"></textarea>
+                <textarea name="description" rows="3">{{ old('description') }}</textarea>
             </div>
 
             <div class="form-group">
                 <label>Document Type *</label>
                 <select name="document_type" required>
-                    <option value="contract">Contract</option>
-                    <option value="invoice">Invoice</option>
-                    <option value="report">Report</option>
-                    <option value="other">Other</option>
+                    <option value="contract" {{ old('document_type') == 'contract' ? 'selected' : '' }}>Contract</option>
+                    <option value="invoice"  {{ old('document_type') == 'invoice'  ? 'selected' : '' }}>Invoice</option>
+                    <option value="report"   {{ old('document_type') == 'report'   ? 'selected' : '' }}>Report</option>
+                    <option value="other"    {{ old('document_type') == 'other'    ? 'selected' : '' }}>Other</option>
                 </select>
             </div>
 
@@ -95,10 +95,13 @@
                 <label>Category</label>
                 <select name="category">
                     <option value="">Select Category</option>
-                    <option value="financial">Financial</option>
-                    <option value="legal">Legal</option>
-                    <option value="technical">Technical</option>
-                    <option value="administrative">Administrative</option>
+                    <option value="war"            {{ (request('category','') == 'war'            || old('category') == 'war')            ? 'selected' : '' }}>WAR – Weekly Accomplishment Report</option>
+                    <option value="dar"            {{ (request('category','') == 'dar'            || old('category') == 'dar')            ? 'selected' : '' }}>DAR – Daily Accomplishment Report</option>
+                    <option value="financial"      {{ (request('category','') == 'financial'      || old('category') == 'financial')      ? 'selected' : '' }}>Financial</option>
+                    <option value="legal"          {{ (request('category','') == 'legal'          || old('category') == 'legal')          ? 'selected' : '' }}>Legal</option>
+                    <option value="technical"      {{ (request('category','') == 'technical'      || old('category') == 'technical')      ? 'selected' : '' }}>Technical</option>
+                    <option value="administrative" {{ (request('category','') == 'administrative' || old('category') == 'administrative') ? 'selected' : '' }}>Administrative</option>
+                    <option value="other"          {{ (request('category','') == 'other'          || old('category') == 'other')          ? 'selected' : '' }}>Other</option>
                 </select>
             </div>
 
@@ -107,7 +110,8 @@
                 <select name="project_id">
                     <option value="">None</option>
                     @foreach ($projects as $project)
-                        <option value="{{ $project->id }}" {{ (request('project_id') == $project->id || old('project_id') == $project->id) ? 'selected' : '' }}>
+                        <option value="{{ $project->id }}"
+                            {{ (request('project_id') == $project->id || old('project_id') == $project->id) ? 'selected' : '' }}>
                             {{ $project->name }}
                         </option>
                     @endforeach
@@ -115,13 +119,26 @@
             </div>
 
             <div class="form-group">
+                <label>Assign to Folder (Optional)</label>
+                <select name="folder_id">
+                    <option value="">— No folder —</option>
+                    @foreach ($folders as $folder)
+                        <option value="{{ $folder->id }}"
+                            {{ (request('folder_id') == $folder->id || old('folder_id') == $folder->id) ? 'selected' : '' }}>
+                            {{ $folder->name }}
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+
+            <div class="form-group">
                 <label>Document Date</label>
-                <input type="date" name="document_date">
+                <input type="date" name="document_date" value="{{ old('document_date') }}">
             </div>
 
             <div class="form-group">
                 <label>Expiry Date (If applicable)</label>
-                <input type="date" name="expiry_date">
+                <input type="date" name="expiry_date" value="{{ old('expiry_date') }}">
             </div>
 
             <div class="form-group">
@@ -138,7 +155,7 @@
 
             <div>
                 <button type="submit" class="btn-submit">Save Document</button>
-                <a href="{{ route('documents.index') }}" class="btn-cancel">Cancel</a>
+                <a href="{{ request('project_id') ? route('documents.project', request('project_id')) : route('documents.index') }}" class="btn-cancel">Cancel</a>
             </div>
         </form>
     </div>

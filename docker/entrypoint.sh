@@ -72,8 +72,14 @@ mkdir -p \
   storage/framework/views \
   storage/logs \
   bootstrap/cache
-chown -R www-data:www-data storage bootstrap/cache
-chmod -R ug+rw storage bootstrap/cache
+
+chown -R www-data:www-data storage bootstrap/cache "${PUBLIC_DISK_ROOT}" "${LOCAL_DISK_ROOT}"
+chmod -R 775 storage bootstrap/cache "${PUBLIC_DISK_ROOT}" "${LOCAL_DISK_ROOT}"
+
+if [ -n "${RAILWAY_VOLUME_MOUNT_PATH:-}" ]; then
+  chown -R www-data:www-data "${RAILWAY_VOLUME_MOUNT_PATH}" 2>/dev/null || true
+  chmod -R 775 "${RAILWAY_VOLUME_MOUNT_PATH}" 2>/dev/null || true
+fi
 
 attempt=1
 max_attempts="${DB_WAIT_MAX_ATTEMPTS:-10}"

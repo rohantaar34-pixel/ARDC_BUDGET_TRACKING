@@ -21,6 +21,11 @@ class Project extends Model
         return $this->hasMany(Document::class);
     }
 
+    public function folders(): HasMany
+    {
+        return $this->hasMany(DocumentFolder::class);
+    }
+
     public function inventoryAssignments(): HasMany
     {
         return $this->hasMany(InventoryAssignment::class);

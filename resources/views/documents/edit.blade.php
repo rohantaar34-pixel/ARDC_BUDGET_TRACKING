@@ -62,10 +62,15 @@
     </style>
 
     <div class="form-container">
-        <h1 style="font-size: 24px; font-weight: 600; margin-bottom: 24px;">Edit Document: {{ $document->document_number }}
-        </h1>
+        <div style="display:flex; align-items:center; gap:12px; margin-bottom:24px;">
+            <a href="{{ $document->project_id ? route('documents.project', [$document->project_id, 'folder_id' => $document->folder_id ?? 'none']) : route('documents.index') }}" style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#f3f4f6;color:#374151;border-radius:8px;text-decoration:none;font-weight:600;font-size:13px;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+                Back
+            </a>
+            <h1 style="font-size: 22px; font-weight: 700; margin:0;">Edit Document: {{ $document->document_number }}</h1>
+        </div>
 
-        <form method="POST" action="{{ route('documents.update', $document) }}" enctype="multipart/form-data">
+        <form method="POST" action="{{ route('documents.update', $document) }}" enctype="multipart/form-data" onsubmit="const b=this.querySelector('.btn-submit'); if(b){b.disabled=true; b.innerText='Updating Document...';}">
             @csrf
             @method('PUT')
 
@@ -82,8 +87,7 @@
             <div class="form-group">
                 <label>Document Type *</label>
                 <select name="document_type" required>
-                    <option value="contract" {{ $document->document_type == 'contract' ? 'selected' : '' }}>Contract
-                    </option>
+                    <option value="contract" {{ $document->document_type == 'contract' ? 'selected' : '' }}>Contract</option>
                     <option value="invoice" {{ $document->document_type == 'invoice' ? 'selected' : '' }}>Invoice</option>
                     <option value="report" {{ $document->document_type == 'report' ? 'selected' : '' }}>Report</option>
                     <option value="other" {{ $document->document_type == 'other' ? 'selected' : '' }}>Other</option>
@@ -94,11 +98,13 @@
                 <label>Category</label>
                 <select name="category">
                     <option value="">Select Category</option>
+                    <option value="war" {{ $document->category == 'war' ? 'selected' : '' }}>WAR – Weekly Accomplishment Report</option>
+                    <option value="dar" {{ $document->category == 'dar' ? 'selected' : '' }}>DAR – Daily Accomplishment Report</option>
                     <option value="financial" {{ $document->category == 'financial' ? 'selected' : '' }}>Financial</option>
                     <option value="legal" {{ $document->category == 'legal' ? 'selected' : '' }}>Legal</option>
                     <option value="technical" {{ $document->category == 'technical' ? 'selected' : '' }}>Technical</option>
-                    <option value="administrative" {{ $document->category == 'administrative' ? 'selected' : '' }}>
-                        Administrative</option>
+                    <option value="administrative" {{ $document->category == 'administrative' ? 'selected' : '' }}>Administrative</option>
+                    <option value="other" {{ $document->category == 'other' ? 'selected' : '' }}>Other</option>
                 </select>
             </div>
 
@@ -109,6 +115,18 @@
                     @foreach ($projects as $project)
                         <option value="{{ $project->id }}" {{ $document->project_id == $project->id ? 'selected' : '' }}>
                             {{ $project->name }}
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Folder / Location</label>
+                <select name="folder_id">
+                    <option value="">— Main Directory (Root / No Folder) —</option>
+                    @foreach ($folders as $folder)
+                        <option value="{{ $folder->id }}" {{ old('folder_id', $document->folder_id) == $folder->id ? 'selected' : '' }}>
+                            {{ $folder->name }} {{ $folder->project ? '('.$folder->project->name.')' : '' }}
                         </option>
                     @endforeach
                 </select>

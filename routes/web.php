@@ -6,6 +6,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\DocumentController;
+use App\Http\Controllers\DocumentFolderController;
 use App\Http\Controllers\MonitoringController;
 use App\Http\Controllers\ProjectReportController;
 use App\Http\Controllers\InventoryController;
@@ -103,11 +104,24 @@ Route::middleware(['guest'])->group(function () {
         // Document Tracker
         Route::get('documents/project/{project}', [DocumentController::class, 'projectFiles'])
             ->name('documents.project');
+        Route::get('documents/category/{category}', [DocumentController::class, 'byCategory'])
+            ->name('documents.by-category');
+        Route::post('documents/bulk-move-category', [DocumentController::class, 'bulkMoveToCategory'])
+            ->name('documents.bulk-move-category');
         Route::resource('documents', DocumentController::class);
         Route::prefix('documents')->name('documents.')->group(function () {
             Route::get('/{document}/download', [DocumentController::class, 'download'])->name('download');
             Route::get('/{document}/scan', [DocumentController::class, 'viewScan'])->name('scan');
+            Route::patch('/{document}/set-folder', [DocumentController::class, 'setFolder'])->name('set-folder');
         });
+
+        // Document Folders
+        Route::resource('document-folders', DocumentFolderController::class)
+            ->only(['index', 'store', 'show', 'update', 'destroy']);
+        Route::post('document-folders/reorder', [DocumentFolderController::class, 'reorder'])
+            ->name('document-folders.reorder');
+        Route::post('document-folders/{documentFolder}/assign', [DocumentFolderController::class, 'assignDocuments'])
+            ->name('document-folders.assign');
     });
 
     Route::middleware(['module:' . User::MODULE_MONITORING_REVIEW])->group(function () {

@@ -246,20 +246,50 @@
     @endif
 
     <div class="action-buttons">
-        <a href="{{ route('documents.index') }}" class="btn btn-back">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
-                <line x1="19" y1="12" x2="5" y2="12"></line>
-                <polyline points="12 19 5 12 12 5"></polyline>
-            </svg>
-            Back to Documents
+        <a href="{{ $document->project_id ? route('documents.project', $document->project_id) . ($document->folder_id ? '?folder_id='.$document->folder_id : '?folder_id=none') : route('documents.index') }}" class="btn btn-back">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;">
+                <line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline>
+            </svg>{{ $document->project_id ? 'Back to Project Files' : 'Back to Documents' }}
         </a>
         <a href="{{ route('documents.edit', $document) }}" class="btn btn-edit">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;">
                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                 <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-            </svg>
-            Edit Document
+            </svg>Edit Document
         </a>
+        <button type="button" onclick="document.getElementById('delete-modal').style.display='flex'"
+            style="background:#dc2626;color:white;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;border:none;display:inline-flex;align-items:center;gap:6px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6l-1 14H6L5 6"></path>
+                <path d="M10 11v6M14 11v6"></path>
+                <path d="M9 6V4h6v2"></path>
+            </svg>Delete
+        </button>
+    </div>
+</div>
+
+{{-- Delete Confirmation Modal --}}
+<div id="delete-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:999;align-items:center;justify-content:center;">
+    <div style="background:white;border-radius:16px;padding:32px;max-width:420px;width:90%;text-align:center;">
+        <div style="width:56px;height:56px;background:#fee2e2;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                <line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+        </div>
+        <h3 style="font-size:18px;font-weight:700;color:#111827;margin-bottom:8px;">Delete Document?</h3>
+        <p style="font-size:14px;color:#6b7280;margin-bottom:24px;">
+            <strong>{{ $document->title }}</strong> will be permanently deleted along with its attached files. This cannot be undone.
+        </p>
+        <div style="display:flex;gap:12px;justify-content:center;">
+            <button onclick="document.getElementById('delete-modal').style.display='none'"
+                style="padding:10px 24px;border-radius:8px;border:1px solid #e5e7eb;background:white;font-weight:600;cursor:pointer;">Cancel</button>
+            <form method="POST" action="{{ route('documents.destroy', $document) }}" style="margin:0;">
+                @csrf @method('DELETE')
+                <button type="submit" style="padding:10px 24px;border-radius:8px;background:#dc2626;color:white;font-weight:600;border:none;cursor:pointer;">Yes, Delete</button>
+            </form>
+        </div>
     </div>
 </div>
 @endsection
